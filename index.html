@@ -339,6 +339,18 @@ Raw sequencing data and final Seurat object are deposited in GEO <a href="https:
 <span class="kw">library</span>(gam, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Dependency</span>
 <span class="kw">library</span>(DESeq2, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Pseudobulk analysis</span></code></pre>
 </div>
+<div id="create-a-function-for-easier-data-import" class="section level3">
+<h3><strong>Create a function for easier data import</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co">#User-defined data import function</span>
+import10x &lt;-<span class="st"> </span>function(path, sample.id, treatment, batch_ID, cellmin, featmin) {
+  seu.data &lt;-<span class="st"> </span><span class="kw">Read10X</span>(<span class="dt">data.dir =</span> path)
+  seu &lt;-<span class="st"> </span><span class="kw">CreateSeuratObject</span>(<span class="dt">counts =</span> seu.data, <span class="dt">project =</span> sample.id, <span class="dt">min.cells =</span> cellmin, <span class="dt">min.features =</span> featmin)
+  seu[[<span class="st">&quot;percent.mt&quot;</span>]] &lt;-<span class="st"> </span><span class="kw">PercentageFeatureSet</span>(seu, <span class="dt">pattern =</span> <span class="st">&quot;^mt-&quot;</span>) <span class="co">#Calculate percent mitochondrial genes</span>
+  seu[[<span class="st">&quot;batch_ID&quot;</span>]] &lt;-<span class="st"> </span>batch_ID <span class="co">#Assign a batch ID in the metadata</span>
+  seu$treatment &lt;-<span class="st"> </span>treatment
+  <span class="kw">return</span>(<span class="kw">list</span>(<span class="dt">ssize =</span> <span class="kw">dim</span>(seu), <span class="dt">seu.object =</span> seu)) <span class="co">#Indicate treatment group in the metadata</span>
+}</code></pre>
+</div>
 <div id="display-session-information" class="section level3">
 <h3><strong>Display session information</strong></h3>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="kw">sessionInfo</span>()</code></pre>
@@ -456,15 +468,955 @@ Raw sequencing data and final Seurat object are deposited in GEO <a href="https:
 <p><a href="#top">Back to top</a></p>
 </div>
 </div>
-<div id="testing-a-ggplot-graph" class="section level2">
-<h2><strong>Testing a ggplot graph</strong></h2>
-<p>Some random text here.</p>
-<pre class="sourceCode r"><code class="sourceCode r">p &lt;-<span class="st"> </span><span class="kw">ggplot</span>(mtcars, <span class="kw">aes</span>(mpg, wt)) +
-<span class="st">  </span><span class="kw">geom_point</span>() +
-<span class="st">  </span><span class="kw">geom_smooth</span>(<span class="dt">method =</span> lm)
+<div id="data-import" class="section level2">
+<h2><strong>Data import</strong></h2>
+<div id="import-datasets" class="section level3">
+<h3><strong>Import datasets</strong></h3>
+<p align="justify">
+Raw sequencing reads were aligned using <strong>CellRanger 3.0.2</strong> (10X Genomics). Datasets were filtered to include only genes detected in at least <strong>3</strong> nuclei, and nuclei which express at least <strong>200</strong> unique genes (features). Nuclei which possess &gt;= <strong>1%</strong> mitochondrial RNA were also excluded from subsequent analyses as nuclei isolation should result in little to no mitochondrial contamination.
+</p>
 
-<span class="kw">ggsave</span>(<span class="dt">file =</span> <span class="st">&#39;p.png&#39;</span>, <span class="dt">plot =</span> p, <span class="dt">height =</span> <span class="dv">6</span>, <span class="dt">width =</span> <span class="dv">6</span>)</code></pre>
-<p><img src = "p.png", width = 100%><br> <a href="#top">Back to top</a></p>
+<pre class="sourceCode r"><code class="sourceCode r">cellmin =<span class="st"> </span><span class="dv">3</span> 
+featmin =<span class="st"> </span><span class="dv">200</span> 
+mtmax =<span class="st"> </span><span class="dv">1</span> 
+
+VEH62 &lt;-<span class="st"> </span><span class="kw">import10x</span>(<span class="kw">paste</span>(path, <span class="st">&quot;VEH62/outs/filtered_feature_bc_matrix/&quot;</span>, <span class="dt">sep =</span> <span class="st">&quot;&quot;</span>), 
+                   <span class="st">&quot;VEH62&quot;</span>, <span class="st">&quot;CONTROL&quot;</span>, <span class="st">&quot;Day2&quot;</span>, cellmin, featmin)
+VEH62$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(VEH62$seu.object, <span class="dt">subset =</span> percent.mt &lt;<span class="st"> </span>mtmax)
+
+VEH64 &lt;-<span class="st"> </span><span class="kw">import10x</span>(<span class="kw">paste</span>(path, <span class="st">&quot;VEH64/outs/filtered_feature_bc_matrix/&quot;</span>, <span class="dt">sep =</span> <span class="st">&quot;&quot;</span>), 
+                   <span class="st">&quot;VEH64&quot;</span>, <span class="st">&quot;CONTROL&quot;</span>, <span class="st">&quot;Day1&quot;</span>, cellmin, featmin)
+VEH64$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(VEH64$seu.object, <span class="dt">subset =</span> percent.mt &lt;<span class="st"> </span>mtmax)
+
+TCDD51 &lt;-<span class="st"> </span><span class="kw">import10x</span>(<span class="kw">paste</span>(path, <span class="st">&quot;TCDD51/outs/filtered_feature_bc_matrix/&quot;</span>, <span class="dt">sep =</span> <span class="st">&quot;&quot;</span>), 
+                    <span class="st">&quot;TCDD51&quot;</span>, <span class="st">&quot;TCDD&quot;</span>, <span class="st">&quot;Day2&quot;</span>, cellmin, featmin)
+TCDD51$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(TCDD51$seu.object, <span class="dt">subset =</span> percent.mt &lt;<span class="st"> </span>mtmax)
+
+TCDD59 &lt;-<span class="st"> </span><span class="kw">import10x</span>(<span class="kw">paste</span>(path, <span class="st">&quot;TCDD59/outs/filtered_feature_bc_matrix/&quot;</span>, <span class="dt">sep =</span> <span class="st">&quot;&quot;</span>), 
+                    <span class="st">&quot;TCDD59&quot;</span>, <span class="st">&quot;TCDD&quot;</span>, <span class="st">&quot;Day2&quot;</span>, cellmin, featmin)
+TCDD59$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(TCDD59$seu.object, <span class="dt">subset =</span> percent.mt &lt;<span class="st"> </span>mtmax)</code></pre>
+</div>
+<div id="dataset-summary-pre-qc" class="section level3">
+<h3><strong>Dataset summary (pre-QC)</strong></h3>
+<p><em><strong>Table 1.</strong></em> Number of genes and nuclei sequenced in liver samples of mice gavaged with sesame oil vehicle or 30 ug/kg TCDD every 4 days for 28 days.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Number of Genes</th>
+<th align="center">Number of Nuclei</th>
+<th align="center">Number of Genes after QC</th>
+<th align="center">Number of Nuclei after QC</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">VEH62</td>
+<td align="center">17575</td>
+<td align="center">3403</td>
+<td align="center">17575</td>
+<td align="center">3402</td>
+</tr>
+<tr class="even">
+<td align="left">VEH64</td>
+<td align="center">17098</td>
+<td align="center">6992</td>
+<td align="center">17098</td>
+<td align="center">6985</td>
+</tr>
+<tr class="odd">
+<td align="left">TCDD51</td>
+<td align="center">18402</td>
+<td align="center">3044</td>
+<td align="center">18402</td>
+<td align="center">3037</td>
+</tr>
+<tr class="even">
+<td align="left">TCDD59</td>
+<td align="center">18607</td>
+<td align="center">3275</td>
+<td align="center">18607</td>
+<td align="center">3265</td>
+</tr>
+</tbody>
+</table>
+<p align="justify">
+A total of 16714 (10395 vehicle and 6319 treated) nuclei were transcriptomes were profiled. The average number of genes detected in each sample was 17920 and the median number of unique expressed genes in individual nuclei was 1696 with a median UMI count of with a median UMI count of 3390
+</p>
+
+</div>
+<div id="prepare-datasets-for-next-steps" class="section level3">
+<h3><strong>Prepare datasets for next steps</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">samples.list &lt;-<span class="st"> </span><span class="kw">c</span>(VEH62$seu.object, 
+                  VEH64$seu.object, 
+                  TCDD51$seu.object, 
+                  TCDD59$seu.object)</code></pre>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="scater-qc" class="section level2">
+<h2><strong>Scater QC</strong></h2>
+<p><a href="https://www.ncbi.nlm.nih.gov/pubmed/28088763" target="_blank">Scater</a> uses the SingleCellExperiment format.</p>
+<div id="convert-seurat-object-to-singlecellexperiment-format" class="section level3">
+<h3><strong>Convert Seurat object to singleCellExperiment format</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">VEH62.sce &lt;-<span class="st"> </span><span class="kw">as.SingleCellExperiment</span>(samples.list[[<span class="dv">1</span>]])
+VEH64.sce &lt;-<span class="st"> </span><span class="kw">as.SingleCellExperiment</span>(samples.list[[<span class="dv">2</span>]])
+TCDD51.sce &lt;-<span class="st"> </span><span class="kw">as.SingleCellExperiment</span>(samples.list[[<span class="dv">3</span>]])
+TCDD59.sce &lt;-<span class="st"> </span><span class="kw">as.SingleCellExperiment</span>(samples.list[[<span class="dv">4</span>]])</code></pre>
+</div>
+<div id="calculate-qc-metrics" class="section level3">
+<h3><strong>Calculate QC metrics</strong></h3>
+<p>We use scater to calculate various QC metrics including distribution of highest abundance genes and frequency</p>
+<pre class="sourceCode r"><code class="sourceCode r">VEH62.sce &lt;-<span class="st"> </span><span class="kw">calculateQCMetrics</span>(VEH62.sce)
+VEH64.sce &lt;-<span class="st"> </span><span class="kw">calculateQCMetrics</span>(VEH64.sce)
+TCDD51.sce &lt;-<span class="st"> </span><span class="kw">calculateQCMetrics</span>(TCDD51.sce)
+TCDD59.sce &lt;-<span class="st"> </span><span class="kw">calculateQCMetrics</span>(TCDD59.sce)</code></pre>
+<p><img src = "scatar1.png", width = 50%><img src = "scatar2.png", width = 50%> <em><strong>Figure 1.</strong></em> QC plots from scater showing <strong>(left)</strong> genes with highest expression in individual nuclei and <strong>(right)</strong> frequency of genes relative to their expression level.</p>
+</div>
+<div id="pca-outlier-detection" class="section level3">
+<h3><strong>PCA Outlier Detection</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">VEH62.sce &lt;-<span class="st"> </span><span class="kw">runPCA</span>(VEH62.sce, <span class="dt">use_coldata =</span> <span class="ot">TRUE</span>, <span class="dt">detect_outliers =</span> <span class="ot">TRUE</span>)
+
+VEH64.sce &lt;-<span class="st"> </span><span class="kw">runPCA</span>(VEH64.sce, <span class="dt">use_coldata =</span> <span class="ot">TRUE</span>, <span class="dt">detect_outliers =</span> <span class="ot">TRUE</span>)
+
+TCDD51.sce &lt;-<span class="st"> </span><span class="kw">runPCA</span>(TCDD51.sce, <span class="dt">use_coldata =</span> <span class="ot">TRUE</span>, <span class="dt">detect_outliers =</span> <span class="ot">TRUE</span>)
+
+TCDD59.sce &lt;-<span class="st"> </span><span class="kw">runPCA</span>(TCDD59.sce, <span class="dt">use_coldata =</span> <span class="ot">TRUE</span>, <span class="dt">detect_outliers =</span> <span class="ot">TRUE</span>)</code></pre>
+<p><img src = "scatar3.png", width = 70%><br> <em><strong>Figure 2.</strong></em> Principal components analysis of scatar QC metrics</p>
+<p><em><strong>Table 2.</strong></em> Summary of nuclei passing or being flagged in each sample.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="center">Row.names</th>
+<th align="center">QC Flagged - VE62</th>
+<th align="center">QC Flagged - VEH64</th>
+<th align="center">QC Flagged - TCDD51</th>
+<th align="center">QC Flagged - TCDD59</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">FALSE</td>
+<td align="center">3318</td>
+<td align="center">6985</td>
+<td align="center">3000</td>
+<td align="center">3229</td>
+</tr>
+<tr class="even">
+<td align="center">TRUE</td>
+<td align="center">84</td>
+<td align="center">NA</td>
+<td align="center">37</td>
+<td align="center">36</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="return-to-object-list" class="section level3">
+<h3><strong>Return to object list</strong></h3>
+<p>Replace the seurat objects with the SCEs containing the QC metrics</p>
+<pre class="sourceCode r"><code class="sourceCode r">samples.list[[<span class="dv">1</span>]] &lt;-<span class="st"> </span><span class="kw">as.Seurat</span>(VEH62.sce)
+samples.list[[<span class="dv">2</span>]] &lt;-<span class="st"> </span><span class="kw">as.Seurat</span>(VEH64.sce)
+samples.list[[<span class="dv">3</span>]] &lt;-<span class="st"> </span><span class="kw">as.Seurat</span>(TCDD51.sce)
+samples.list[[<span class="dv">4</span>]] &lt;-<span class="st"> </span><span class="kw">as.Seurat</span>(TCDD59.sce)</code></pre>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="doublet-detection" class="section level2">
+<h2><strong>Doublet detection</strong></h2>
+<div id="preparing-sample-datasets-for-doublet-detection" class="section level3">
+<h3><strong>Preparing sample datasets for doublet detection</strong></h3>
+<p>A clustering resolution of <strong>0.2</strong> was selected based on preliminary evaluations which produced similar number of clusters as identified hepatic cell types from previous studies.</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Normalize and scale datasets independently</span>
+samples.list &lt;-<span class="st"> </span><span class="kw">lapply</span>(<span class="dt">X =</span> samples.list, <span class="dt">FUN =</span> function(x) {
+  x &lt;-<span class="st"> </span><span class="kw">NormalizeData</span>(x, <span class="dt">normalization.method =</span> <span class="st">&quot;LogNormalize&quot;</span>, <span class="dt">scale.factor =</span> <span class="dv">10000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindVariableFeatures</span>(x, <span class="dt">selection.method =</span> <span class="st">&quot;vst&quot;</span>, <span class="dt">nfeatures =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">ScaleData</span>(x, <span class="dt">features =</span> <span class="kw">rownames</span>(x), <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+})
+
+<span class="co"># Run dimensionality reduction and identify nuclei clusters</span>
+samples.list &lt;-<span class="st"> </span><span class="kw">lapply</span>(<span class="dt">X =</span> samples.list, <span class="dt">FUN =</span> function(x) {
+  <span class="kw">DefaultAssay</span>(x) &lt;-<span class="st"> &#39;RNA&#39;</span>  
+  x &lt;-<span class="st"> </span><span class="kw">RunPCA</span>(x, <span class="dt">features =</span> <span class="kw">VariableFeatures</span>(<span class="dt">object =</span> x), <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindNeighbors</span>(x, <span class="dt">reduction =</span> <span class="st">&quot;pca&quot;</span>, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">20</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindClusters</span>(x, <span class="dt">resolution =</span> <span class="fl">0.2</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">RunTSNE</span>(x, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">max_iter =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">RunUMAP</span>(x, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+})</code></pre>
+<p><img src = "umap_samples.png", width = 100%><br> <em><strong>Figure 3.</strong></em> UMAP visualization of individual liver samples.</p>
+</div>
+<div id="doublet-detection-1" class="section level3">
+<h3><strong>Doublet detection</strong></h3>
+<p>Doublet detection is performed using <a href="https://github.com/chris-mcginnis-ucsf/DoubletFinder")" target="_blank">DoubletFinder</a> assuming a <strong>3.1%</strong> doublet formation rate based on the low rate for 10X genomics shown <a href="https://www.biotech.wisc.edu/services/gec/services/rochelightcyclerservices" target="_blank">here</a></p>
+<ul>
+<li>~0.8% per 1,000 cells</li>
+<li>~1.6% per 2,000 cells</li>
+<li>~2.3% per 3,000 cells</li>
+<li>~3.1% per 4,000 cells</li>
+<li>~3.9% per 5,000 cells</li>
+<li>…</li>
+</ul>
+<div id="veh62" class="section level4">
+<h4><strong>VEH62</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">sweep.res.list_liver &lt;-<span class="st"> </span><span class="kw">paramSweep_v3</span>(samples.list[[<span class="dv">1</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+sweep.stats_liver &lt;-<span class="st"> </span><span class="kw">summarizeSweep</span>(sweep.res.list_liver, <span class="dt">GT =</span> <span class="ot">FALSE</span>)
+bcmvn_liver &lt;-<span class="st"> </span><span class="kw">find.pK</span>(sweep.stats_liver)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-5-1.svg" width="96" /></p>
+<pre class="sourceCode r"><code class="sourceCode r">homotypic.prop &lt;-<span class="st"> </span><span class="kw">modelHomotypic</span>(samples.list[[<span class="dv">1</span>]]@meta.data$SCT_snn_res<span class="fl">.0.2</span>)   
+nExp_poi &lt;-<span class="st"> </span><span class="kw">round</span>(<span class="fl">0.031</span>*<span class="kw">length</span>(<span class="kw">rownames</span>(samples.list[[<span class="dv">1</span>]]@meta.data))) <span class="co"># Assuming 3.1% doublet formation rate - tailor for your dataset</span>
+nExp_poi.adj &lt;-<span class="st"> </span><span class="kw">round</span>(nExp_poi*(<span class="dv">1</span> -<span class="st"> </span>homotypic.prop))
+
+samples.list[[<span class="dv">1</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">1</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi, <span class="dt">reuse.pANN =</span> <span class="ot">FALSE</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+samples.list[[<span class="dv">1</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">1</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi.adj, <span class="dt">reuse.pANN =</span> <span class="st">&quot;pANN_0.25_0.09_105&quot;</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)</code></pre>
+</div>
+<div id="veh64" class="section level4">
+<h4><strong>VEH64</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">sweep.res.list_liver &lt;-<span class="st"> </span><span class="kw">paramSweep_v3</span>(samples.list[[<span class="dv">2</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+sweep.stats_liver &lt;-<span class="st"> </span><span class="kw">summarizeSweep</span>(sweep.res.list_liver, <span class="dt">GT =</span> <span class="ot">FALSE</span>)
+bcmvn_liver &lt;-<span class="st"> </span><span class="kw">find.pK</span>(sweep.stats_liver)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-6-1.svg" width="96" /></p>
+<pre class="sourceCode r"><code class="sourceCode r">homotypic.prop &lt;-<span class="st"> </span><span class="kw">modelHomotypic</span>(samples.list[[<span class="dv">2</span>]]@meta.data$SCT_snn_res<span class="fl">.0.2</span>)           
+nExp_poi &lt;-<span class="st"> </span><span class="kw">round</span>(<span class="fl">0.031</span>*<span class="kw">length</span>(<span class="kw">rownames</span>(samples.list[[<span class="dv">2</span>]]@meta.data)))  <span class="co"># Assuming 3.1% doublet formation rate - tailor for your dataset</span>
+nExp_poi.adj &lt;-<span class="st"> </span><span class="kw">round</span>(nExp_poi*(<span class="dv">1</span> -<span class="st"> </span>homotypic.prop))
+
+samples.list[[<span class="dv">2</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">2</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi, <span class="dt">reuse.pANN =</span> <span class="ot">FALSE</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+samples.list[[<span class="dv">2</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">2</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi.adj, <span class="dt">reuse.pANN =</span> <span class="st">&quot;pANN_0.25_0.09_217&quot;</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)</code></pre>
+</div>
+<div id="tcdd51" class="section level4">
+<h4><strong>TCDD51</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">sweep.res.list_liver &lt;-<span class="st"> </span><span class="kw">paramSweep_v3</span>(samples.list[[<span class="dv">3</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+sweep.stats_liver &lt;-<span class="st"> </span><span class="kw">summarizeSweep</span>(sweep.res.list_liver, <span class="dt">GT =</span> <span class="ot">FALSE</span>)
+bcmvn_liver &lt;-<span class="st"> </span><span class="kw">find.pK</span>(sweep.stats_liver)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-7-1.svg" width="96" /></p>
+<pre class="sourceCode r"><code class="sourceCode r">homotypic.prop &lt;-<span class="st"> </span><span class="kw">modelHomotypic</span>(samples.list[[<span class="dv">3</span>]]@meta.data$SCT_snn_res<span class="fl">.0.2</span>)         
+nExp_poi &lt;-<span class="st"> </span><span class="kw">round</span>(<span class="fl">0.031</span>*<span class="kw">length</span>(<span class="kw">rownames</span>(samples.list[[<span class="dv">3</span>]]@meta.data)))  <span class="co"># Assuming 3.1% doublet formation rate - tailor for your dataset</span>
+nExp_poi.adj &lt;-<span class="st"> </span><span class="kw">round</span>(nExp_poi*(<span class="dv">1</span> -<span class="st"> </span>homotypic.prop))
+
+samples.list[[<span class="dv">3</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">3</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi, <span class="dt">reuse.pANN =</span> <span class="ot">FALSE</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+samples.list[[<span class="dv">3</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">3</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi.adj, <span class="dt">reuse.pANN =</span> <span class="st">&quot;pANN_0.25_0.09_94&quot;</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)</code></pre>
+</div>
+<div id="tcdd59" class="section level4">
+<h4><strong>TCDD59</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">sweep.res.list_liver &lt;-<span class="st"> </span><span class="kw">paramSweep_v3</span>(samples.list[[<span class="dv">4</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+sweep.stats_liver &lt;-<span class="st"> </span><span class="kw">summarizeSweep</span>(sweep.res.list_liver, <span class="dt">GT =</span> <span class="ot">FALSE</span>)
+bcmvn_liver &lt;-<span class="st"> </span><span class="kw">find.pK</span>(sweep.stats_liver)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-8-1.svg" width="96" /></p>
+<pre class="sourceCode r"><code class="sourceCode r">homotypic.prop &lt;-<span class="st"> </span><span class="kw">modelHomotypic</span>(samples.list[[<span class="dv">4</span>]]@meta.data$SCT_snn_res<span class="fl">.0.2</span>)   
+nExp_poi &lt;-<span class="st"> </span><span class="kw">round</span>(<span class="fl">0.031</span>*<span class="kw">length</span>(<span class="kw">rownames</span>(samples.list[[<span class="dv">4</span>]]@meta.data)))  <span class="co"># Assuming 3.1% doublet formation rate - tailor for your dataset</span>
+nExp_poi.adj &lt;-<span class="st"> </span><span class="kw">round</span>(nExp_poi*(<span class="dv">1</span> -<span class="st"> </span>homotypic.prop))
+
+samples.list[[<span class="dv">4</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">4</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi, <span class="dt">reuse.pANN =</span> <span class="ot">FALSE</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)
+samples.list[[<span class="dv">4</span>]] &lt;-<span class="st"> </span><span class="kw">doubletFinder_v3</span>(samples.list[[<span class="dv">4</span>]], <span class="dt">PCs =</span> <span class="dv">1</span>:<span class="dv">10</span>, <span class="dt">pN =</span> <span class="fl">0.25</span>, <span class="dt">pK =</span> <span class="fl">0.09</span>, <span class="dt">nExp =</span> nExp_poi.adj, <span class="dt">reuse.pANN =</span> <span class="st">&quot;pANN_0.25_0.09_101&quot;</span>, <span class="dt">sct =</span> <span class="ot">FALSE</span>)</code></pre>
+</div>
+</div>
+<div id="removing-doublets" class="section level3">
+<h3><strong>Removing doublets</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># VEH62</span>
+samples.list[[<span class="dv">1</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">1</span>]], <span class="dt">subset =</span> outlier ==<span class="st"> </span><span class="ot">FALSE</span>)
+samples.list[[<span class="dv">1</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">1</span>]], <span class="dt">subset =</span> DF.classifications_0.25_0.09_105 ==<span class="st"> &quot;Singlet&quot;</span>)
+
+<span class="co"># VEH64</span>
+samples.list[[<span class="dv">2</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">2</span>]], <span class="dt">subset =</span> outlier ==<span class="st"> </span><span class="ot">FALSE</span>)
+samples.list[[<span class="dv">2</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">2</span>]], <span class="dt">subset =</span> DF.classifications_0.25_0.09_217 ==<span class="st"> &quot;Singlet&quot;</span>)
+
+<span class="co"># TCDD51</span>
+samples.list[[<span class="dv">3</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">3</span>]], <span class="dt">subset =</span> outlier ==<span class="st"> </span><span class="ot">FALSE</span>)
+samples.list[[<span class="dv">3</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">3</span>]], <span class="dt">subset =</span> DF.classifications_0.25_0.09_94 ==<span class="st"> &quot;Singlet&quot;</span>)
+
+<span class="co"># TCDD59</span>
+samples.list[[<span class="dv">4</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">4</span>]], <span class="dt">subset =</span> outlier ==<span class="st"> </span><span class="ot">FALSE</span>)
+samples.list[[<span class="dv">4</span>]] &lt;-<span class="st"> </span><span class="kw">subset</span>(samples.list[[<span class="dv">4</span>]], <span class="dt">subset =</span> DF.classifications_0.25_0.09_101 ==<span class="st"> &quot;Singlet&quot;</span>)</code></pre>
+</div>
+<div id="summarizing-scater-qc" class="section level3">
+<h3><strong>Summarizing scater QC</strong></h3>
+<p><em><strong>Table 4.</strong></em> Number of genes and nuclei sequenced in liver samples of mice gavaged with sesame oil vehicle or 30 ug/kg TCDD every 4 days for 28 days.</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(data.summary)</code></pre>
+<pre><code>##        Number of Genes Number of Nuclei Number of Genes after QC
+## VEH62            17575             3403                    17575
+## VEH64            17098             6992                    17098
+## TCDD51           18402             3044                    18402
+## TCDD59           18607             3275                    18607
+##        Number of Nuclei after QC
+## VEH62                       3402
+## VEH64                       6985
+## TCDD51                      3037
+## TCDD59                      3265</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">data.summary</code></pre>
+<pre><code>##        Number of Genes Number of Nuclei Number of Genes after QC
+## VEH62            17575             3403                    17575
+## VEH64            17098             6992                    17098
+## TCDD51           18402             3044                    18402
+## TCDD59           18607             3275                    18607
+##        Number of Nuclei after QC
+## VEH62                       3402
+## VEH64                       6985
+## TCDD51                      3037
+## TCDD59                      3265</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(<span class="kw">class</span>(data.summary))</code></pre>
+<pre><code>## [1] &quot;matrix&quot;</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">class</span>(data.summary)</code></pre>
+<pre><code>## [1] &quot;matrix&quot;</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">data.summary &lt;-<span class="st"> </span><span class="kw">data.frame</span>(data.summary)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Number.of.Genes</th>
+<th align="center">Number.of.Nuclei</th>
+<th align="center">Number.of.Genes.after.QC</th>
+<th align="center">Number.of.Nuclei.after.QC</th>
+<th align="center">Number of Nuclei after scater</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">VEH62</td>
+<td align="center">17575</td>
+<td align="center">3403</td>
+<td align="center">17575</td>
+<td align="center">3402</td>
+<td align="center">3213</td>
+</tr>
+<tr class="even">
+<td align="left">VEH64</td>
+<td align="center">17098</td>
+<td align="center">6992</td>
+<td align="center">17098</td>
+<td align="center">6985</td>
+<td align="center">6768</td>
+</tr>
+<tr class="odd">
+<td align="left">TCDD51</td>
+<td align="center">18402</td>
+<td align="center">3044</td>
+<td align="center">18402</td>
+<td align="center">3037</td>
+<td align="center">2906</td>
+</tr>
+<tr class="even">
+<td align="left">TCDD59</td>
+<td align="center">18607</td>
+<td align="center">3275</td>
+<td align="center">18607</td>
+<td align="center">3265</td>
+<td align="center">3128</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="pseudobulk-analysis-and-comparison" class="section level2">
+<h2><strong>Pseudobulk analysis and comparison</strong></h2>
+<div id="sum-counts-accross-all-cells" class="section level3">
+<h3><strong>Sum counts accross all cells</strong></h3>
+<p>To create pseudobulk data we use the scater packages sumCountsAcrossCells function which sums the counts accross all cells for each gene.</p>
+<pre class="sourceCode r"><code class="sourceCode r">pbVEH62 &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(<span class="kw">sumCountsAcrossCells</span>(VEH62.sce, <span class="dt">ids =</span> <span class="kw">rep</span>(<span class="st">&quot;VEH62&quot;</span>, <span class="kw">ncol</span>(VEH62.sce))))
+pbVEH64 &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(<span class="kw">sumCountsAcrossCells</span>(VEH64.sce, <span class="dt">ids =</span> <span class="kw">rep</span>(<span class="st">&quot;VEH64&quot;</span>, <span class="kw">ncol</span>(VEH64.sce))))
+pbTCDD51 &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(<span class="kw">sumCountsAcrossCells</span>(TCDD51.sce, <span class="dt">ids =</span> <span class="kw">rep</span>(<span class="st">&quot;VTCDD51&quot;</span>, <span class="kw">ncol</span>(TCDD51.sce))))
+pbTCDD59 &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(<span class="kw">sumCountsAcrossCells</span>(TCDD59.sce, <span class="dt">ids =</span> <span class="kw">rep</span>(<span class="st">&quot;TCDD59&quot;</span>, <span class="kw">ncol</span>(TCDD59.sce))))
+<span class="kw">saveRDS</span>(pbVEH62, <span class="dt">file =</span> <span class="st">&#39;pbVEH62.RData&#39;</span>)
+<span class="kw">saveRDS</span>(pbVEH64, <span class="dt">file =</span> <span class="st">&#39;pbVEH64.RData&#39;</span>)
+<span class="kw">saveRDS</span>(pbTCDD51, <span class="dt">file =</span> <span class="st">&#39;pbTCDD51.RData&#39;</span>)
+<span class="kw">saveRDS</span>(pbTCDD59, <span class="dt">file =</span> <span class="st">&#39;pbTCDD59.RData&#39;</span>)</code></pre>
+</div>
+<div id="differential-expression-analysis" class="section level3">
+<h3><strong>Differential expression analysis</strong></h3>
+<p>We create a matrix with all pseudobulk data for all genes in order to perform differential expression analysis using the DESeq2 package.</p>
+<pre class="sourceCode r"><code class="sourceCode r">count.matrix &lt;-<span class="st"> </span><span class="kw">merge</span>(<span class="kw">as.matrix</span>(pbVEH62), <span class="kw">as.matrix</span>(pbVEH64), <span class="dt">by =</span> <span class="st">&#39;row.names&#39;</span>, <span class="dt">all =</span> <span class="ot">TRUE</span>)
+<span class="kw">rownames</span>(count.matrix) &lt;-<span class="st"> </span>count.matrix$Row.names
+count.matrix &lt;-<span class="st"> </span>count.matrix[ ,-<span class="dv">1</span>]
+
+count.matrix &lt;-<span class="st"> </span><span class="kw">merge</span>(count.matrix, <span class="kw">as.matrix</span>(pbTCDD51), <span class="dt">by =</span> <span class="st">&#39;row.names&#39;</span>, <span class="dt">all =</span> <span class="ot">TRUE</span>)
+<span class="kw">rownames</span>(count.matrix) &lt;-<span class="st"> </span>count.matrix$Row.names
+count.matrix &lt;-<span class="st"> </span>count.matrix[ ,-<span class="dv">1</span>]
+
+count.matrix &lt;-<span class="st"> </span><span class="kw">merge</span>(count.matrix, <span class="kw">as.matrix</span>(pbTCDD59), <span class="dt">by =</span> <span class="st">&#39;row.names&#39;</span>, <span class="dt">all =</span> <span class="ot">TRUE</span>)
+<span class="kw">rownames</span>(count.matrix) &lt;-<span class="st"> </span>count.matrix$Row.names
+count.matrix &lt;-<span class="st"> </span>count.matrix[ ,-<span class="dv">1</span>]
+
+count.matrix[<span class="kw">is.na</span>(count.matrix)] &lt;-<span class="st"> </span><span class="dv">0</span></code></pre>
+<p>A data frame with the sample information is used for differential expression analysis</p>
+<pre class="sourceCode r"><code class="sourceCode r">sample_name &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;VEH62&quot;</span>, <span class="st">&quot;VEH64&quot;</span>, <span class="st">&quot;TCDD51&quot;</span>, <span class="st">&quot;TCDD59&quot;</span>)
+treatment &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;CONTROL&quot;</span>, <span class="st">&quot;CONTROL&quot;</span>, <span class="st">&quot;TCDD&quot;</span>, <span class="st">&quot;TCDD&quot;</span>)
+
+coldata &lt;-<span class="st"> </span><span class="kw">data.frame</span>(sample_name, treatment)
+
+coldata$treatment &lt;-<span class="st"> </span><span class="kw">factor</span>(coldata$treatment, <span class="dt">levels =</span> <span class="kw">c</span>(<span class="st">&quot;CONTROL&quot;</span>, <span class="st">&quot;TCDD&quot;</span>))
+
+dds &lt;-<span class="st"> </span><span class="kw">DESeqDataSetFromMatrix</span>(<span class="dt">countData =</span> count.matrix, 
+                              <span class="dt">colData =</span> coldata,
+                              <span class="dt">design =</span> ~<span class="st"> </span>treatment)
+
+dds &lt;-<span class="st"> </span><span class="kw">DESeq</span>(dds)</code></pre>
+<p>Look at differential expression between treatment groups</p>
+<pre class="sourceCode r"><code class="sourceCode r">pb.data &lt;-<span class="st"> </span><span class="kw">results</span>(dds, <span class="dt">name =</span> <span class="st">&#39;treatment_TCDD_vs_CONTROL&#39;</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">saveRDS</span>(pb.data, <span class="dt">file =</span> <span class="st">&#39;pseudobulk.deseq.RData&#39;</span>)</code></pre>
+</div>
+<div id="comparison-to-bulk-rnaseq-data" class="section level3">
+<h3><strong>Comparison to bulk RNAseq data</strong></h3>
+<p>We can import a true bulk RNAseq dataset, generated using the exact same study design, for comparison.</p>
+<pre class="sourceCode r"><code class="sourceCode r">bulk.data &lt;-<span class="st"> </span><span class="kw">read.table</span>(<span class="st">&#39;./Prj140_RNASeq_Liver_MaleTCDD_28D_RDDR_TZ.txt&#39;</span>, <span class="dt">sep =</span> <span class="st">&#39;</span><span class="ch">\t</span><span class="st">&#39;</span>, <span class="dt">header =</span> <span class="ot">TRUE</span>, <span class="dt">row.names =</span> <span class="dv">2</span>) 
+pb.bulk.merge &lt;-<span class="st"> </span><span class="kw">merge</span>(bulk.data, <span class="kw">data.frame</span>(pb.data), <span class="dt">by =</span> <span class="st">&quot;row.names&quot;</span>)[,<span class="kw">c</span>(<span class="st">&quot;Row.names&quot;</span>,<span class="st">&quot;Ensembl_ID&quot;</span>, <span class="st">&quot;FC_30&quot;</span>, <span class="st">&quot;P1.t._30&quot;</span>, <span class="st">&quot;log2FoldChange&quot;</span>, <span class="st">&quot;pvalue&quot;</span>, <span class="st">&quot;padj&quot;</span>)]
+<span class="kw">rownames</span>(pb.bulk.merge) &lt;-<span class="st"> </span>pb.bulk.merge[,<span class="st">&quot;Row.names&quot;</span>]
+pb.bulk.merge &lt;-<span class="st"> </span>pb.bulk.merge[,-<span class="dv">1</span>]
+<span class="kw">colnames</span>(pb.bulk.merge) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Ensembl_ID&quot;</span>, <span class="st">&quot;bulk.fc&quot;</span>, <span class="st">&quot;bulk.p1t&quot;</span>, <span class="st">&quot;pb.log2.fc&quot;</span>, <span class="st">&quot;pb.pval&quot;</span>, <span class="st">&quot;pb.padj&quot;</span>)
+pb.bulk.merge$bulk.log2.fc &lt;-<span class="st"> </span><span class="kw">log</span>(pb.bulk.merge$bulk.fc, <span class="dv">2</span>)
+pb.bulk.merge$pb.fc &lt;-<span class="st"> </span><span class="dv">2</span>^(pb.bulk.merge$pb.log2.fc)</code></pre>
+<p><img src = "pb.bulk.png", width = 50%><br> <em><strong>Figure 4.</strong></em> Comparison of pseudobulk and bulk RNAseq expression fold changes for differentially expressed genes common to both datasets (|fold change| &gt;= 2, P1(t) &gt;= 0.8, adjusted p-value &lt;= 0.05).</p>
+<p><strong>Table 5</strong>. Genes exhibiting divergent differential expression foldd changes between pseudobulk and bulk RNAseq datasets</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">bulk.fc</th>
+<th align="center">bulk.p1t</th>
+<th align="center">pb.fc</th>
+<th align="center">pb.padj</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">2900089D17Rik</td>
+<td align="center">2.00</td>
+<td align="center">0.9483</td>
+<td align="center">0.2703954</td>
+<td align="center">0.0379913</td>
+</tr>
+<tr class="even">
+<td align="left">Adamtsl2</td>
+<td align="center">2.08</td>
+<td align="center">0.9920</td>
+<td align="center">0.0879140</td>
+<td align="center">0.0001526</td>
+</tr>
+<tr class="odd">
+<td align="left">Adgre4</td>
+<td align="center">0.41</td>
+<td align="center">0.9159</td>
+<td align="center">12.3040852</td>
+<td align="center">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Alas1</td>
+<td align="center">2.87</td>
+<td align="center">0.9983</td>
+<td align="center">0.1010329</td>
+<td align="center">0.0039359</td>
+</tr>
+<tr class="odd">
+<td align="left">Arhgef17</td>
+<td align="center">2.33</td>
+<td align="center">0.9998</td>
+<td align="center">0.3330213</td>
+<td align="center">0.0403673</td>
+</tr>
+<tr class="even">
+<td align="left">AY074887</td>
+<td align="center">2.17</td>
+<td align="center">0.9945</td>
+<td align="center">0.2314922</td>
+<td align="center">0.0363477</td>
+</tr>
+<tr class="odd">
+<td align="left">Bmp10</td>
+<td align="center">2.38</td>
+<td align="center">0.9701</td>
+<td align="center">0.2004421</td>
+<td align="center">0.0372565</td>
+</tr>
+<tr class="even">
+<td align="left">Ccdc162</td>
+<td align="center">0.16</td>
+<td align="center">1.0000</td>
+<td align="center">2.5811562</td>
+<td align="center">0.0174711</td>
+</tr>
+<tr class="odd">
+<td align="left">Clec4f</td>
+<td align="center">0.38</td>
+<td align="center">0.8803</td>
+<td align="center">29.1165311</td>
+<td align="center">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Daam2</td>
+<td align="center">2.52</td>
+<td align="center">1.0000</td>
+<td align="center">0.1849529</td>
+<td align="center">0.0001608</td>
+</tr>
+<tr class="odd">
+<td align="left">Eps8</td>
+<td align="center">2.06</td>
+<td align="center">0.9422</td>
+<td align="center">0.3547363</td>
+<td align="center">0.0102991</td>
+</tr>
+<tr class="even">
+<td align="left">Fcna</td>
+<td align="center">0.35</td>
+<td align="center">0.9963</td>
+<td align="center">2.5078549</td>
+<td align="center">0.0401130</td>
+</tr>
+<tr class="odd">
+<td align="left">Fhl1</td>
+<td align="center">2.16</td>
+<td align="center">1.0000</td>
+<td align="center">0.3179905</td>
+<td align="center">0.0175785</td>
+</tr>
+<tr class="even">
+<td align="left">Ighm</td>
+<td align="center">0.40</td>
+<td align="center">0.8282</td>
+<td align="center">6.1685956</td>
+<td align="center">0.0015037</td>
+</tr>
+<tr class="odd">
+<td align="left">Kcna2</td>
+<td align="center">0.38</td>
+<td align="center">0.9478</td>
+<td align="center">32.0553669</td>
+<td align="center">0.0000016</td>
+</tr>
+<tr class="even">
+<td align="left">Mamdc2</td>
+<td align="center">2.81</td>
+<td align="center">0.9999</td>
+<td align="center">0.3536866</td>
+<td align="center">0.0011068</td>
+</tr>
+<tr class="odd">
+<td align="left">Neat1</td>
+<td align="center">3.82</td>
+<td align="center">1.0000</td>
+<td align="center">0.3126309</td>
+<td align="center">0.0000515</td>
+</tr>
+<tr class="even">
+<td align="left">Nrxn3</td>
+<td align="center">2.80</td>
+<td align="center">0.9609</td>
+<td align="center">0.3197011</td>
+<td align="center">0.0444389</td>
+</tr>
+<tr class="odd">
+<td align="left">Osbpl5</td>
+<td align="center">2.27</td>
+<td align="center">0.9978</td>
+<td align="center">0.1955340</td>
+<td align="center">0.0095923</td>
+</tr>
+<tr class="even">
+<td align="left">Pde1a</td>
+<td align="center">2.67</td>
+<td align="center">0.9998</td>
+<td align="center">0.3244668</td>
+<td align="center">0.0269022</td>
+</tr>
+<tr class="odd">
+<td align="left">Pltp</td>
+<td align="center">0.34</td>
+<td align="center">0.9906</td>
+<td align="center">2.7925114</td>
+<td align="center">0.0034887</td>
+</tr>
+<tr class="even">
+<td align="left">Plvap</td>
+<td align="center">2.50</td>
+<td align="center">1.0000</td>
+<td align="center">0.2556868</td>
+<td align="center">0.0150403</td>
+</tr>
+<tr class="odd">
+<td align="left">Raet1e</td>
+<td align="center">0.48</td>
+<td align="center">0.9864</td>
+<td align="center">3.2831530</td>
+<td align="center">0.0084182</td>
+</tr>
+<tr class="even">
+<td align="left">Rps27rt</td>
+<td align="center">0.45</td>
+<td align="center">0.9336</td>
+<td align="center">2.1611734</td>
+<td align="center">0.0221576</td>
+</tr>
+<tr class="odd">
+<td align="left">Slc22a27</td>
+<td align="center">0.48</td>
+<td align="center">0.8522</td>
+<td align="center">18.5317965</td>
+<td align="center">0.0005048</td>
+</tr>
+<tr class="even">
+<td align="left">Timd4</td>
+<td align="center">0.28</td>
+<td align="center">0.9618</td>
+<td align="center">24.2311468</td>
+<td align="center">0.0000022</td>
+</tr>
+<tr class="odd">
+<td align="left">Tnxb</td>
+<td align="center">2.55</td>
+<td align="center">0.9980</td>
+<td align="center">0.2386420</td>
+<td align="center">0.0300508</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="sample-integration" class="section level2">
+<h2><strong>Sample Integration</strong></h2>
+<div id="identify-anchors-and-integrate-all-samples" class="section level3">
+<h3><strong>Identify anchors and integrate all samples</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">liver.anchors &lt;-<span class="st"> </span><span class="kw">FindIntegrationAnchors</span>(<span class="dt">object.list =</span> samples.list, <span class="dt">scale =</span> <span class="ot">FALSE</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">IntegrateData</span>(<span class="dt">anchorset =</span> liver.anchors, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)</code></pre>
+</div>
+<div id="scaling-and-dimensionality-reduction" class="section level3">
+<h3><strong>Scaling and dimensionality reduction</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(liver.integrated) &lt;-<span class="st"> &quot;integrated&quot;</span>
+liver.integrated &lt;-<span class="st"> </span><span class="kw">ScaleData</span>(liver.integrated, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">RunPCA</span>(liver.integrated, <span class="dt">features =</span> <span class="kw">VariableFeatures</span>(<span class="dt">object =</span> liver.integrated))
+liver.integrated &lt;-<span class="st"> </span><span class="kw">RunTSNE</span>(liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">max_iter =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">RunUMAP</span>(liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">plots &lt;-<span class="st"> </span><span class="kw">DimPlot</span>(liver.integrated, <span class="dt">group.by =</span> <span class="kw">c</span>(<span class="st">&quot;orig.ident&quot;</span>, <span class="st">&quot;treatment&quot;</span>), <span class="dt">combine =</span> <span class="ot">FALSE</span>)</code></pre>
+<p><img src = "dplot.png", width = 100%> <em><strong>Figure 6.</strong></em> UMAP visualization of integrated samples seperated by <strong>(left)</strong> sample ID or <strong>(right)</strong> treatment group.</p>
+</div>
+<div id="clustering" class="section level3">
+<h3><strong>Clustering</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">liver.integrated &lt;-<span class="st"> </span><span class="kw">FindNeighbors</span>(liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">FindClusters</span>(liver.integrated, <span class="dt">resolution =</span> <span class="fl">0.2</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</code></pre>
+<p><img src = "dplot2.png", width = 60%><br> <em><strong>Figure 5.</strong></em> UMAP visualization of clustered nuclei.</p>
+</div>
+<div id="normalize-and-scale-integrated-samples" class="section level3">
+<h3><strong>Normalize and scale integrated samples</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(liver.integrated) &lt;-<span class="st"> &#39;RNA&#39;</span>
+liver.integrated &lt;-<span class="st"> </span><span class="kw">NormalizeData</span>(liver.integrated, <span class="dt">normalization.method =</span> <span class="st">&quot;LogNormalize&quot;</span>, <span class="dt">scale.factor =</span> <span class="dv">10000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+all.genes &lt;-<span class="st"> </span><span class="kw">rownames</span>(liver.integrated)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">ScaleData</span>(<span class="dt">object =</span> liver.integrated, <span class="dt">features =</span> all.genes)</code></pre>
+</div>
+<div id="identify-cluster-marker-genes" class="section level3">
+<h3><strong>Identify cluster marker genes</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">liver.integrated.markers &lt;-<span class="st"> </span><span class="kw">FindAllMarkers</span>(liver.integrated, <span class="dt">only.pos =</span> <span class="ot">TRUE</span>, <span class="dt">min.pct =</span> <span class="fl">0.25</span>, <span class="dt">logfc.threshold =</span> <span class="fl">0.25</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+liver.integrated.top &lt;-<span class="st"> </span>liver.integrated.markers %&gt;%<span class="st"> </span><span class="kw">group_by</span>(cluster) %&gt;%<span class="st"> </span><span class="kw">top_n</span>(<span class="dt">n =</span> <span class="dv">5</span>, <span class="dt">wt =</span> avg_logFC) <span class="co"># Only look at top 5</span></code></pre>
+<p><img src = "heatmap.png", width = 70%><br> <em><strong>Figure 6.</strong></em> Heatmap of top 5 cluster marker genes.</p>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="comparing-to-published-datasets" class="section level2">
+<h2><strong>Comparing to published datasets</strong></h2>
+<div id="importing-published-datasets" class="section level3">
+<h3><strong>Importing published datasets</strong></h3>
+<p><em>Halpern, K. B., Shenhav, R., Matcovitch-Natan, O., Toth, B., Lemze, D., Golan, M., Massasa, E. E., Baydatch, S., Landen, S., Moor, A. E., Brandis, A., Giladi, A., Avihail, A. S., David, E., Amit, I. and Itzkovitz, S. (2017). Single-cell spatial reconstruction reveals global division of labour in the mammalian liver. Nature 542(7641), 352-356. <a href="https://www.ncbi.nlm.nih.gov/pubmed/28166538">PMID: 28166538</a></em></p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co">#halpern &lt;- readRDS(&#39;./PublishedData/HalpernLiver.RData&#39;)</span>
+halpern &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="st">&#39;./PublishedData/HalpernLiverLayers.RData&#39;</span>)
+<span class="kw">DefaultAssay</span>(halpern) &lt;-<span class="st"> &#39;RNA&#39;</span></code></pre>
+<p>A total of <strong>1415</strong> cells were sequenced using MARS-seq with a total of <strong>27297</strong> genes detected. The median number of genes detected per cell was <strong>2364</strong> while the median UMIs per cell was <strong>10649</strong>. <br><br></p>
+<p><em>Halpern, K. B., Shenhav, R., Massalha, H., Toth, B., Egozi, A., Massasa, E. E., Medgalia, C., David, E., Giladi, A., Moor, A. E., Porat, Z., Amit, I. and Itzkovitz, S. (2018). Paired-cell sequencing enables spatial gene expression mapping of liver endothelial cells. Nature biotechnology. <a href="https://www.ncbi.nlm.nih.gov/pubmed/30222169">PMID: 30222169</a></em></p>
+<pre class="sourceCode r"><code class="sourceCode r">LEC.halpern &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="st">&#39;./PublishedData/HalpernLEC.RData&#39;</span>)
+<span class="kw">DefaultAssay</span>(LEC.halpern) &lt;-<span class="st"> &#39;RNA&#39;</span></code></pre>
+<p>A total of <strong>3151</strong> cells were sequenced using MARS-seq with a total of <strong>33924</strong> genes detected. The median number of genes detected per cell was <strong>417</strong> while the median UMIs per cell was <strong>611</strong>. <br><br></p>
+<p><em>Xiong, X., Kuang, H., Ansari, S., Liu, T., Gong, J., Wang, S., Zhao, X. Y., Ji, Y., Li, C., Guo, L., Zhou, L., Chen, Z., Leon-Mimila, P., Chung, M. T., Kurabayashi, K., Opp, J., Campos-Perez, F., Villamil-Ramirez, H., Canizales-Quinteros, S., Lyons, R., Lumeng, C. N., Zhou, B., Qi, L., Huertas-Vazquez, A., Lusis, A. J., Xu, X. Z. S., Li, S., Yu, Y., Li, J. Z. and Lin, J. D. (2019). Landscape of Intercellular Crosstalk in Healthy and NASH Liver Revealed by Single-Cell Secretome Gene Analysis. Mol Cell 75(3), 644-660 e5. <a href="https://www.ncbi.nlm.nih.gov/pubmed/31398325">PMID: 31398325</a></em></p>
+<pre class="sourceCode r"><code class="sourceCode r">Xiong.nash &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="st">&#39;./PublishedData/xiong.nash.cellannotated.RData&#39;</span>)
+<span class="kw">DefaultAssay</span>(Xiong.nash) &lt;-<span class="st"> &#39;RNA&#39;</span>
+Xiong.nash &lt;-<span class="st"> </span><span class="kw">FindVariableFeatures</span>(<span class="dt">object =</span> Xiong.nash)</code></pre>
+<p>A total of <strong>33168</strong> cells were sequenced using the 10X Genomics platform with a total of <strong>32452</strong> genes detected. The median number of genes detected per cell was <strong>1484</strong> while the median UMIs per cell was <strong>3706</strong>. <br><br></p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(liver.integrated) &lt;-<span class="st"> &#39;RNA&#39;</span></code></pre>
+</div>
+<div id="cellnuclei-label-prediction-using-seurat" class="section level3">
+<h3><strong>Cell/nuclei label prediction using Seurat</strong></h3>
+<div id="halpern-et-al.-2017" class="section level4">
+<h4><strong>Halpern et al. (2017)</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">liver.anchors &lt;-<span class="st"> </span><span class="kw">FindTransferAnchors</span>(<span class="dt">reference =</span> halpern, <span class="dt">query =</span> liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+predictions &lt;-<span class="st"> </span><span class="kw">TransferData</span>(<span class="dt">anchorset =</span> liver.anchors, <span class="dt">refdata =</span> halpern$celltype, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">AddMetaData</span>(liver.integrated, <span class="dt">metadata =</span> predictions)</code></pre>
+</div>
+<div id="halpern-et-al.-2018" class="section level4">
+<h4><strong>Halpern et al. (2018)</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">liver.anchors &lt;-<span class="st"> </span><span class="kw">FindTransferAnchors</span>(<span class="dt">reference =</span> LEC.halpern, <span class="dt">query =</span> liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+predictions &lt;-<span class="st"> </span><span class="kw">TransferData</span>(<span class="dt">anchorset =</span> liver.anchors, <span class="dt">refdata =</span> LEC.halpern$celltype, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">AddMetaData</span>(liver.integrated, <span class="dt">metadata =</span> predictions)</code></pre>
+</div>
+<div id="xiong-et-al.-2019" class="section level4">
+<h4><strong>Xiong et al. (2019)</strong></h4>
+<pre class="sourceCode r"><code class="sourceCode r">liver.anchors &lt;-<span class="st"> </span><span class="kw">FindTransferAnchors</span>(<span class="dt">reference =</span> Xiong.nash, <span class="dt">query =</span> liver.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+predictions &lt;-<span class="st"> </span><span class="kw">TransferData</span>(<span class="dt">anchorset =</span> liver.anchors, <span class="dt">refdata =</span> Xiong.nash$celltype, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">AddMetaData</span>(liver.integrated, <span class="dt">metadata =</span> predictions)</code></pre>
+</div>
+</div>
+<div id="evaluating-prediction-scores" class="section level3">
+<h3><strong>Evaluating prediction scores</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">prediction.scores &lt;-<span class="st"> </span>liver.integrated@meta.data[, <span class="kw">grepl</span>(<span class="st">&quot;^prediction|integrated_snn_res.0.2&quot;</span>, <span class="kw">names</span>(liver.integrated@meta.data))]
+prediction.scores &lt;-<span class="st"> </span>prediction.scores[,-<span class="kw">which</span>(<span class="kw">names</span>(prediction.scores) ==<span class="st"> &quot;prediction.score.max&quot;</span>)]
+<span class="kw">colnames</span>(prediction.scores) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;prediction.score.&quot;</span>, <span class="st">&quot;&quot;</span>, <span class="kw">colnames</span>(prediction.scores))
+prediction.scores &lt;-<span class="st"> </span><span class="kw">melt</span>(prediction.scores, <span class="dt">id.vars =</span> <span class="st">&quot;integrated_snn_res.0.2&quot;</span>, <span class="dt">variable.name =</span> <span class="st">&quot;source&quot;</span>, <span class="dt">value.name =</span> <span class="st">&quot;score&quot;</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">prediction.matrix &lt;-<span class="st"> </span><span class="kw">tapply</span>(prediction.scores$score, <span class="kw">list</span>(prediction.scores$integrated_snn_res<span class="fl">.0.2</span>, prediction.scores$source), median)
+liver.hm &lt;-<span class="st"> </span><span class="kw">pheatmap</span>(prediction.matrix, <span class="dt">cluster_rows =</span> <span class="ot">FALSE</span>, <span class="dt">cluster_cols =</span> <span class="ot">FALSE</span>, <span class="dt">color =</span> <span class="kw">colorRampPalette</span>(<span class="kw">c</span>(<span class="st">&quot;white&quot;</span>,<span class="st">&quot;red&quot;</span>))(<span class="dv">200</span>), <span class="dt">display_numbers =</span> <span class="ot">FALSE</span>, <span class="dt">silent =</span> <span class="ot">TRUE</span>)</code></pre>
+<p><img src = "dplot2.png", width = 30%><img src = "hmap_liver.png", width = 70%><br> <em><strong>Figure 7.</strong></em> <strong>(Left)</strong> UMAP visualiation of annotated clusters and <strong>(right)</strong> heatmap demonstrating the scaled median label transfer prediction score.</p>
+</div>
+<div id="reannotating-clusters-using-common-names" class="section level3">
+<h3><strong>Reannotating clusters using common names</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Common cell type names</span>
+Cluster<span class="fl">.0</span> &lt;-<span class="st"> &quot;Hepatocytes - Midcentral&quot;</span>
+Cluster<span class="fl">.1</span> &lt;-<span class="st"> &quot;Hepatocytes - Portal&quot;</span>
+Cluster<span class="fl">.2</span> &lt;-<span class="st"> &quot;Endothelial Cells&quot;</span>
+Cluster<span class="fl">.3</span> &lt;-<span class="st"> &quot;Macrophages&quot;</span>
+Cluster<span class="fl">.4</span> &lt;-<span class="st"> &quot;Hepatocytes - Central&quot;</span>
+Cluster<span class="fl">.5</span> &lt;-<span class="st"> &quot;Hepatocytes - Midportal&quot;</span>
+Cluster<span class="fl">.6</span> &lt;-<span class="st"> &quot;Stellate Cells&quot;</span>
+Cluster<span class="fl">.7</span> &lt;-<span class="st"> &quot;B Cells&quot;</span>
+Cluster<span class="fl">.8</span> &lt;-<span class="st"> &quot;T Cells&quot;</span>
+Cluster<span class="fl">.9</span> &lt;-<span class="st"> &quot;Cholangiocytes&quot;</span>
+Cluster<span class="fl">.10</span> &lt;-<span class="st"> &quot;Neutrophils&quot;</span>
+
+new.cluster.ids &lt;-<span class="st"> </span><span class="kw">c</span>(Cluster<span class="fl">.0</span>, Cluster<span class="fl">.1</span>, Cluster<span class="fl">.2</span>, Cluster<span class="fl">.3</span>, Cluster<span class="fl">.4</span>, Cluster<span class="fl">.5</span>, Cluster<span class="fl">.6</span>, Cluster<span class="fl">.7</span>, Cluster<span class="fl">.8</span>, Cluster<span class="fl">.9</span>, Cluster<span class="fl">.10</span>)
+
+<span class="kw">names</span>(new.cluster.ids) &lt;-<span class="st"> </span><span class="kw">levels</span>(liver.integrated)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">RenameIdents</span>(liver.integrated, new.cluster.ids)
+liver.integrated$celltype &lt;-<span class="st"> </span><span class="kw">Idents</span>(liver.integrated)
+
+liver.integrated$celltype &lt;-<span class="st"> </span><span class="kw">Idents</span>(liver.integrated)
+
+liver.integrated$celltype &lt;-<span class="st"> </span><span class="kw">factor</span>(liver.integrated$celltype, <span class="dt">levels =</span> <span class="kw">c</span>(
+  <span class="st">&quot;Hepatocytes - Central&quot;</span>,
+  <span class="st">&quot;Hepatocytes - Midcentral&quot;</span>,
+  <span class="st">&quot;Hepatocytes - Midportal&quot;</span>,
+  <span class="st">&quot;Hepatocytes - Portal&quot;</span>,
+  <span class="st">&quot;Cholangiocytes&quot;</span>,
+  <span class="st">&quot;Endothelial Cells&quot;</span>,
+  <span class="st">&quot;Stellate Cells&quot;</span>,
+  <span class="st">&quot;Macrophages&quot;</span>,
+  <span class="st">&quot;B Cells&quot;</span>,
+  <span class="st">&quot;T Cells&quot;</span>,
+  <span class="st">&quot;Neutrophils&quot;</span>
+))
+
+<span class="co"># Reset idents in order to add ontology annotation</span>
+<span class="kw">Idents</span>(liver.integrated) &lt;-<span class="st"> &#39;integrated_snn_res.0.2&#39;</span></code></pre>
+</div>
+<div id="cell-ontology-annotation" class="section level3">
+<h3><strong>Cell ontology annotation</strong></h3>
+<p><a href="https://www.ebi.ac.uk/ols/ontologies/cl" target="_blank">Click here</a> for ontology source</p>
+<pre class="sourceCode r"><code class="sourceCode r">Cluster<span class="fl">.0</span> &lt;-<span class="st"> &quot;CL:0000182:Hepatocyte&quot;</span>
+Cluster<span class="fl">.1</span> &lt;-<span class="st"> &quot;CL:0000182:Hepatocyte&quot;</span>
+Cluster<span class="fl">.2</span> &lt;-<span class="st"> &quot;CL:0002262:Endothelial Cell of Sinusoid&quot;</span>
+Cluster<span class="fl">.3</span> &lt;-<span class="st"> &quot;CL:0000235:Macrophage&quot;</span>
+Cluster<span class="fl">.4</span> &lt;-<span class="st"> &quot;CL:0000182:Hepatocyte&quot;</span>
+Cluster<span class="fl">.5</span> &lt;-<span class="st"> &quot;CL:0000182:Hepatocyte&quot;</span>
+Cluster<span class="fl">.6</span> &lt;-<span class="st"> &quot;CL:0000632: Hepatic Stellate Cell&quot;</span>
+Cluster<span class="fl">.7</span> &lt;-<span class="st"> &quot;CL:1000488:Cholangiocyte&quot;</span>
+Cluster<span class="fl">.8</span> &lt;-<span class="st"> &quot;CL:0000084:T cell&quot;</span>
+Cluster<span class="fl">.9</span> &lt;-<span class="st"> &quot;CL:0000236:B Cell&quot;</span>
+Cluster<span class="fl">.10</span> &lt;-<span class="st"> &quot;CL:0000775:Neutrophil&quot;</span>
+
+new.cluster.cl &lt;-<span class="st"> </span><span class="kw">c</span>(Cluster<span class="fl">.0</span>, Cluster<span class="fl">.1</span>, Cluster<span class="fl">.2</span>, Cluster<span class="fl">.3</span>, Cluster<span class="fl">.4</span>, Cluster<span class="fl">.5</span>, Cluster<span class="fl">.6</span>, Cluster<span class="fl">.7</span>, Cluster<span class="fl">.8</span>, Cluster<span class="fl">.9</span>, Cluster<span class="fl">.10</span>)
+
+<span class="kw">names</span>(new.cluster.cl) &lt;-<span class="st"> </span><span class="kw">levels</span>(liver.integrated)
+liver.integrated &lt;-<span class="st"> </span><span class="kw">RenameIdents</span>(liver.integrated, new.cluster.cl)
+liver.integrated$celltype.ontology &lt;-<span class="st"> </span><span class="kw">Idents</span>(liver.integrated)
+
+liver.integrated$celltype.ontology &lt;-<span class="st"> </span><span class="kw">Idents</span>(liver.integrated)
+
+liver.integrated$celltype.ontology &lt;-<span class="st"> </span><span class="kw">factor</span>(liver.integrated$celltype.ontology, <span class="dt">levels =</span> <span class="kw">c</span>(
+  <span class="st">&quot;CL:0000182:Hepatocyte&quot;</span>,
+  <span class="st">&quot;CL:1000488:Cholangiocyte&quot;</span>,
+  <span class="st">&quot;CL:0002262:Endothelial Cell of Sinusoid&quot;</span>,
+  <span class="st">&quot;CL:0000632: Hepatic Stellate Cell&quot;</span>,
+  <span class="st">&quot;CL:0000235:Macrophage&quot;</span>,
+  <span class="st">&quot;CL:0000236:B Cell&quot;</span>,
+  <span class="st">&quot;CL:0000084:T cell&quot;</span>,
+  <span class="st">&quot;CL:0000775:Neutrophil&quot;</span>
+))</code></pre>
+</div>
+<div id="merge-celltype-and-treatment-for-differential-expression-analysis" class="section level3">
+<h3><strong>Merge celltype and treatment for differential expression analysis</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">liver.integrated$cluster.treatment &lt;-<span class="st"> </span><span class="kw">paste</span>(liver.integrated$integrated_snn_res<span class="fl">.0.2</span>, liver.integrated$treatment, <span class="dt">sep =</span> <span class="st">&quot;_&quot;</span>)
+liver.integrated$celltype.treatment &lt;-<span class="st"> </span><span class="kw">paste</span>(liver.integrated$celltype, liver.integrated$treatment, <span class="dt">sep =</span> <span class="st">&quot;_&quot;</span>)</code></pre>
+</div>
+<div id="change-default-identifier-to-celltype" class="section level3">
+<h3><strong>Change default identifier to celltype</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">Idents</span>(liver.integrated) &lt;-<span class="st"> &#39;celltype&#39;</span></code></pre>
+<p><img src = "umap_annotated.png", width = 70%><br> <em><strong>Figure 8.</strong></em> UMAP visualiation of annotated clusters</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(liver.integrated) &lt;-<span class="st"> &#39;RNA&#39;</span>
+<span class="kw">saveRDS</span>(liver.integrated, <span class="dt">file =</span> <span class="st">&#39;./finaloutput/liver.integrated.final.RData&#39;</span>)</code></pre>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="hepatocyte-trajectory" class="section level2">
+<h2><strong>Hepatocyte trajectory</strong></h2>
+<div id="subset-and-seperate-hepatocytes" class="section level3">
+<h3><strong>Subset and seperate hepatocytes</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">hepatocytes.integrated &lt;-<span class="st"> </span><span class="kw">subset</span>(liver.integrated, <span class="dt">subset =</span> celltype.ontology ==<span class="st"> &quot;CL:0000182:Hepatocyte&quot;</span>)
+hep.list &lt;-<span class="st"> </span><span class="kw">SplitObject</span>(hepatocytes.integrated, <span class="dt">split.by =</span> <span class="st">&#39;orig.ident&#39;</span>)</code></pre>
+</div>
+<div id="reprocess-counts-from-hepatocytes-only" class="section level3">
+<h3><strong>Reprocess counts from hepatocytes only</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">hep.list &lt;-<span class="st"> </span><span class="kw">lapply</span>(<span class="dt">X =</span> hep.list, <span class="dt">FUN =</span> function(x) {
+  x &lt;-<span class="st"> </span><span class="kw">NormalizeData</span>(x, <span class="dt">normalization.method =</span> <span class="st">&quot;LogNormalize&quot;</span>, <span class="dt">scale.factor =</span> <span class="dv">10000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindVariableFeatures</span>(x, <span class="dt">selection.method =</span> <span class="st">&quot;vst&quot;</span>, <span class="dt">nfeatures =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">ScaleData</span>(x, <span class="dt">features =</span> <span class="kw">rownames</span>(x), <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+})</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">zone.mat &lt;-<span class="st"> </span><span class="kw">read.table</span>(<span class="st">&#39;./PublishedData/HalpernZonationGenes.txt&#39;</span>, <span class="dt">header =</span> T, <span class="dt">sep =</span> <span class="st">&quot;</span><span class="ch">\t</span><span class="st">&quot;</span>)
+zone.mat &lt;-<span class="st"> </span><span class="kw">subset</span>(zone.mat, zone.mat$q.values &lt;=<span class="st"> </span><span class="fl">0.005</span>)
+common.genes &lt;-<span class="st"> </span><span class="kw">intersect</span>(zone.mat$Gene.Symbol, <span class="kw">rownames</span>(hepatocytes.integrated))
+hepatocytes.integrated@assays$RNA@var.features &lt;-<span class="st"> </span>common.genes</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">hep.list &lt;-<span class="st"> </span><span class="kw">lapply</span>(<span class="dt">X =</span> hep.list, <span class="dt">FUN =</span> function(x) {
+  <span class="kw">DefaultAssay</span>(x) &lt;-<span class="st"> &#39;RNA&#39;</span>  
+  x &lt;-<span class="st"> </span><span class="kw">RunPCA</span>(x, <span class="dt">features =</span> <span class="kw">intersect</span>(zone.mat$Gene.Symbol, <span class="kw">rownames</span>(x)), <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindNeighbors</span>(x, <span class="dt">reduction =</span> <span class="st">&quot;pca&quot;</span>, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">20</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">FindClusters</span>(x, <span class="dt">resolution =</span> <span class="fl">0.2</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">RunTSNE</span>(x, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">max_iter =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+  x &lt;-<span class="st"> </span><span class="kw">RunUMAP</span>(x, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">verbpse =</span> <span class="ot">FALSE</span>)
+})</code></pre>
+</div>
+<div id="reintegrate-samples" class="section level3">
+<h3><strong>Reintegrate samples</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">hep.anchors &lt;-<span class="st"> </span><span class="kw">FindIntegrationAnchors</span>(<span class="dt">object.list =</span> hep.list, <span class="dt">scale =</span> <span class="ot">FALSE</span>)
+hep.integrated &lt;-<span class="st"> </span><span class="kw">IntegrateData</span>(<span class="dt">anchorset =</span> hep.anchors, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(hep.integrated) &lt;-<span class="st"> &quot;integrated&quot;</span>
+hep.integrated &lt;-<span class="st"> </span><span class="kw">ScaleData</span>(hep.integrated, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+hep.integrated &lt;-<span class="st"> </span><span class="kw">RunPCA</span>(hep.integrated, <span class="dt">features =</span> <span class="kw">intersect</span>(zone.mat$Gene.Symbol, <span class="kw">rownames</span>(hep.integrated)))
+hep.integrated &lt;-<span class="st"> </span><span class="kw">RunTSNE</span>(hep.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">max_iter =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+hep.integrated &lt;-<span class="st"> </span><span class="kw">RunUMAP</span>(hep.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)</code></pre>
+<p><img src = "umap_heps.png", width = 100%><br> <em><strong>Figure 9.</strong></em> UMAP visualiation of annotated clusters</p>
+<pre class="sourceCode r"><code class="sourceCode r">hep.integrated &lt;-<span class="st"> </span><span class="kw">FindNeighbors</span>(hep.integrated, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+hep.integrated &lt;-<span class="st"> </span><span class="kw">FindClusters</span>(hep.integrated, <span class="dt">resolution =</span> <span class="fl">1.2</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</code></pre>
+<p><img src = "umap_heps2.png", width = 60%><br> <em><strong>Figure 10.</strong></em> UMAP visualiation of annotated clusters</p>
+</div>
+<div id="compare-to-halpern-zonal-expression" class="section level3">
+<h3><strong>Compare to Halpern zonal expression</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(halpern) &lt;-<span class="st"> &#39;RNA&#39;</span>
+<span class="kw">DefaultAssay</span>(hep.integrated) &lt;-<span class="st"> &#39;RNA&#39;</span>
+liver.anchors &lt;-<span class="st"> </span><span class="kw">FindTransferAnchors</span>(<span class="dt">reference =</span> halpern, <span class="dt">query =</span> hep.integrated, <span class="dt">features =</span> common.genes, <span class="dt">k.anchor =</span> <span class="dv">100</span>)
+predictions &lt;-<span class="st"> </span><span class="kw">TransferData</span>(<span class="dt">anchorset =</span> liver.anchors, <span class="dt">refdata =</span> halpern$celltype, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">10</span>)
+hep.integrated &lt;-<span class="st"> </span><span class="kw">AddMetaData</span>(hep.integrated, <span class="dt">metadata =</span> predictions)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">prediction.scores &lt;-<span class="st"> </span>hep.integrated@meta.data[, <span class="kw">grepl</span>(<span class="st">&quot;^prediction.score.Layer|integrated_snn_res.1.2&quot;</span>, <span class="kw">names</span>(hep.integrated@meta.data))]
+<span class="kw">colnames</span>(prediction.scores) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;prediction.score.&quot;</span>, <span class="st">&quot;&quot;</span>, <span class="kw">colnames</span>(prediction.scores))
+prediction.scores &lt;-<span class="st"> </span><span class="kw">melt</span>(prediction.scores, <span class="dt">id.vars =</span> <span class="st">&quot;integrated_snn_res.1.2&quot;</span>, <span class="dt">variable.name =</span> <span class="st">&quot;source&quot;</span>, <span class="dt">value.name =</span> <span class="st">&quot;score&quot;</span>)
+prediction.scores$source &lt;-<span class="st"> </span><span class="kw">factor</span>(prediction.scores$source, <span class="dt">levels =</span> <span class="kw">c</span>(<span class="st">&quot;Layer1&quot;</span>, <span class="st">&quot;Layer2&quot;</span>, <span class="st">&quot;Layer3&quot;</span>, <span class="st">&quot;Layer4&quot;</span>, <span class="st">&quot;Layer5&quot;</span>, <span class="st">&quot;Layer6&quot;</span>, <span class="st">&quot;Layer7&quot;</span>, <span class="st">&quot;Layer8&quot;</span>, <span class="st">&quot;Layer9&quot;</span>))
+prediction.matrix &lt;-<span class="st"> </span><span class="kw">tapply</span>(prediction.scores$score, <span class="kw">list</span>(prediction.scores$integrated_snn_res<span class="fl">.1.2</span>, prediction.scores$source), median)
+<span class="kw">write.table</span>(prediction.matrix, <span class="dt">file =</span> <span class="st">&#39;./finaloutput/prediction.matrix.hepatocytes.txt&#39;</span>, <span class="dt">sep =</span> <span class="st">&#39;</span><span class="ch">\t</span><span class="st">&#39;</span>)
+<span class="co"># prediction.matrix &lt;- prediction.matrix[ ,grep(&#39;Layer&#39;, names(prediction.matrix))]</span>
+<span class="co"># prediction.matrix &lt;- prediction.matrix[, colSums(prediction.matrix) &gt; 0]</span></code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">cl_cb &lt;-<span class="st"> </span>function(hcl, mat){
+  hcl$order &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">6</span>,<span class="dv">7</span>,<span class="dv">5</span>,<span class="dv">1</span>,<span class="dv">9</span>,<span class="dv">8</span>,<span class="dv">3</span>,<span class="dv">4</span>,<span class="dv">2</span>)
+  <span class="kw">return</span>(hcl)
+}</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">hep.hm &lt;-<span class="st"> </span><span class="kw">pheatmap</span>(<span class="kw">scale</span>(prediction.matrix), 
+                    <span class="co">#clustering_distance_cols = &quot;manhattan&quot;,</span>
+                    <span class="dt">cluster_cols=</span><span class="ot">FALSE</span>,
+                    <span class="dt">cluster_rows=</span><span class="ot">TRUE</span>,
+                    <span class="dt">clustering_callback =</span> cl_cb,
+                        <span class="dt">fontsize_row =</span> <span class="dv">10</span>,
+                        <span class="dt">fontsize_col =</span> <span class="dv">10</span>,
+                        <span class="dt">color =</span> <span class="kw">colorRampPalette</span>(<span class="kw">c</span>(<span class="st">&quot;white&quot;</span>,<span class="st">&quot;red&quot;</span>))(<span class="dv">2000</span>),
+                        <span class="dt">display_numbers =</span> <span class="ot">FALSE</span>,
+                        <span class="dt">silent =</span> <span class="ot">TRUE</span>
+         )
+<span class="co"># hep.hm &lt;- pheatmap(prediction.matrix, cluster_rows = FALSE, cluster_cols = FALSE, color = colorRampPalette(c(&quot;white&quot;,&quot;red&quot;))(200), display_numbers = FALSE, silent = TRUE)</span></code></pre>
+<p><img src = "umap_heps2.png", width = 40%><img src = "hmap_hep.png", width = 60%><br> <em><strong>Figure 10.</strong></em> UMAP visualiation of annotated clusters</p>
+</div>
+<div id="slingshot-topology" class="section level3">
+<h3><strong>Slingshot topology</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(hep.integrated) &lt;-<span class="st"> &#39;RNA&#39;</span>
+sim &lt;-<span class="st"> </span><span class="kw">as.SingleCellExperiment</span>(hep.integrated)
+condition &lt;-<span class="st"> </span><span class="kw">as.factor</span>(sim$treatment)
+sim &lt;-<span class="st"> </span><span class="kw">slingshot</span>(sim, <span class="dt">reducedDim =</span> <span class="st">&#39;UMAP&#39;</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">colors &lt;-<span class="st"> </span><span class="kw">colorRampPalette</span>(<span class="kw">brewer.pal</span>(<span class="dv">11</span>,<span class="st">&#39;Spectral&#39;</span>)[-<span class="dv">6</span>])(<span class="dv">500</span>)
+plotcol &lt;-<span class="st"> </span>colors[<span class="kw">cut</span>(sim$slingPseudotime_1, <span class="dt">breaks =</span> <span class="dv">500</span>)]
+
+i =<span class="st"> </span>(<span class="dv">0</span>:<span class="dv">30</span>)/<span class="dv">10</span>
+legcol &lt;-<span class="st"> </span>colors[<span class="kw">cut</span>(i, <span class="dt">breaks =</span> <span class="dv">500</span>)]
+<span class="kw">plot</span>(<span class="kw">reducedDims</span>(sim)$UMAP, <span class="dt">col =</span> plotcol, <span class="dt">pch =</span> <span class="dv">16</span>, <span class="dt">asp =</span> <span class="dv">1</span>)
+<span class="kw">lines</span>(<span class="kw">SlingshotDataSet</span>(sim), <span class="dt">lwd =</span> <span class="dv">2</span>, <span class="dt">col =</span> <span class="st">&#39;black&#39;</span>)
+start =<span class="st"> </span><span class="fl">2.4</span>
+<span class="kw">rect</span>(start +<span class="st"> </span>i, <span class="fl">5.0</span>, start +<span class="st"> </span><span class="fl">0.1</span> +<span class="st"> </span>i, <span class="fl">5.6</span>, <span class="dt">col =</span> legcol[(i*<span class="dv">10</span>)+<span class="dv">1</span>], <span class="dt">lwd =</span> <span class="dv">0</span>, <span class="dt">lty =</span> <span class="st">&#39;blank&#39;</span>)
+<span class="kw">rect</span>(start, <span class="dv">5</span>, start +<span class="st"> </span><span class="fl">3.1</span>, <span class="fl">5.6</span>)
+<span class="kw">text</span>(<span class="fl">1.834</span>, -<span class="fl">2.239</span>, <span class="st">&#39;0&#39;</span>)
+<span class="kw">text</span>(-<span class="fl">4.54</span>, <span class="fl">2.390</span>, <span class="st">&#39;1&#39;</span>)
+<span class="kw">text</span>(-<span class="fl">3.4877</span>, <span class="fl">1.076</span>, <span class="st">&#39;2&#39;</span>)
+<span class="kw">text</span>(-<span class="fl">1.379</span>, <span class="fl">2.824</span>, <span class="st">&#39;3&#39;</span>)
+<span class="kw">text</span>(<span class="fl">4.778</span>, -<span class="fl">2.372</span>, <span class="st">&#39;4&#39;</span>)
+<span class="kw">text</span>(<span class="fl">6.481</span>, -<span class="fl">1.97</span>, <span class="st">&#39;5&#39;</span>)
+<span class="kw">text</span>(<span class="fl">4.632</span>, -<span class="fl">0.223</span>, <span class="st">&#39;6&#39;</span>)
+<span class="kw">text</span>(-<span class="fl">5.339</span>, -<span class="fl">0.0601</span>, <span class="st">&#39;7&#39;</span>)
+<span class="kw">text</span>(<span class="fl">0.3739</span>, -<span class="fl">0.1409</span>, <span class="st">&#39;8&#39;</span>)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-65-1.svg" width="672" /> <em><strong>Figure 11.</strong></em> Trajectory analysis of hepatocyte nuclei.</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">layout</span>(<span class="kw">matrix</span>(<span class="dv">1</span>:<span class="dv">2</span>,<span class="dt">nrow =</span> <span class="dv">1</span>))
+<span class="kw">boxplot</span>(<span class="kw">slingPseudotime</span>(sim)[,<span class="dv">1</span>] ~<span class="st"> </span>condition, <span class="dt">col =</span> <span class="kw">brewer.pal</span>(<span class="dv">3</span>,<span class="st">&#39;Set1&#39;</span>)[<span class="dv">1</span>:<span class="dv">2</span>], <span class="dt">main =</span> <span class="st">&#39;&#39;</span>, <span class="dt">xlab =</span> <span class="st">&#39;Condition&#39;</span>, <span class="dt">ylab =</span> <span class="st">&#39;Pseudotime&#39;</span>, <span class="dt">las =</span> <span class="dv">1</span>, <span class="dt">pch =</span> <span class="dv">16</span>)
+<span class="kw">layout</span>(<span class="dv">1</span>)</code></pre>
+<p><img src="index_files/figure-html/unnamed-chunk-66-1.svg" width="672" /> <em><strong>Figure 12.</strong></em> Distribution of hepatocyte nuclei along the trajectory in control and treated samples.</p>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="functional-enrichment" class="section level2">
+<h2><strong>Functional enrichment</strong></h2>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(GSVA, <span class="dt">quietly =</span> <span class="ot">TRUE</span>)
+<span class="kw">library</span>(GSEABase, <span class="dt">quietly =</span> <span class="ot">TRUE</span>)</code></pre>
+<p>The GSVA package implements the methodology described in the previous section in the function gsva() which requires two main input arguments: the gene expression data and a collection of gene sets. The expression data can be provided either as a matrix object of genes (rows) by sample (columns) expression values. The collection of gene sets can be provided either as a list object with names identifying gene sets and each entry of the list containing the gene identifiers of the genes forming the corresponding set, or as a GeneSetCollection object as defined in the GSEABase package.</p>
+<p>Enrichment analysis was performed using the Mus musculus (mouse) Gene Ontology from the <a href="http://ge-lab.org/gskb/" target="_blank">Gene Set Knowledgebase (GSKB)</a></p>
+<div id="prepare-data-for-gsva-analysis" class="section level3">
+<h3>__Prepare data for GSVA analysis</h3>
+<pre class="sourceCode r"><code class="sourceCode r">gsets &lt;-<span class="st"> </span><span class="kw">getGmt</span>(<span class="st">&#39;./PublicDatasets/MousePath_All_gmt-Format.gmt&#39;</span>)
+input_data &lt;-<span class="st"> </span>liver.integrated@assays$RNA@scale.data
+<span class="kw">rownames</span>(input_data) &lt;-<span class="st"> </span><span class="kw">toupper</span>(<span class="kw">rownames</span>(input_data)) <span class="co">#GSKB defaults gene symbols as all capitals.</span></code></pre>
+</div>
+<div id="run-gsva" class="section level3">
+<h3><strong>Run GSVA</strong></h3>
+<p>This process is extremely slow (~12h using 4 cores and 128GB memory on the MSU HPCC)</p>
+<pre class="sourceCode r"><code class="sourceCode r">path_enrich &lt;-<span class="st"> </span><span class="kw">gsva</span>(input_data, gsets, <span class="dt">min.sz =</span> <span class="dv">10</span>, <span class="dt">max.sz =</span> <span class="dv">300</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, <span class="dt">parallel.sz =</span> <span class="dv">1</span>)</code></pre>
+</div>
+<div id="filter-unwanted-gene-sets" class="section level3">
+<h3><strong>Filter unwanted Gene Sets</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;CTD&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;STITCH&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;HPO&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;MATADOR&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;DRUGBANK&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;HUMANCYC&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;SIDER&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;T3DB&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;METHCANCER&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;METHYCANCER&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;LOC_&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;CANCERGENES&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;L2L_&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+path_enrich &lt;-<span class="st"> </span>path_enrich[-(<span class="kw">grep</span>(<span class="st">&#39;LIT_&#39;</span>, <span class="kw">rownames</span>(path_enrich))), ]
+<span class="kw">dim</span>(path_enrich)</code></pre>
+</div>
+<div id="convert-enrichment-analysis" class="section level3">
+<h3><strong>Convert enrichment analysis</strong></h3>
+<p>Seurat object data is replaced with enrichment analysis data in order to leverage the same tools</p>
+<pre class="sourceCode r"><code class="sourceCode r">GSVA.enrichment  &lt;-<span class="st"> </span>liver.integrated</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">GSVA.enrichment@assays$RNA@counts &lt;-<span class="st"> </span>path_enrich
+GSVA.enrichment@assays$RNA@data &lt;-<span class="st"> </span>path_enrich
+GSVA.enrichment@assays$RNA@scale.data &lt;-<span class="st"> </span>path_enrich
+GSVA.enrichment@assays$integrated@scale.data &lt;-<span class="st"> </span>path_enrich
+GSVA.enrichment@assays$integrated@data &lt;-<span class="st"> </span>path_enrich
+GSVA.enrichment@assays$integrated@var.features &lt;-<span class="st"> </span><span class="kw">rownames</span>(liver.integrated.pathway@assays$integrated@scale.data)</code></pre>
+</div>
+<div id="dimensionality-reduction" class="section level3">
+<h3><strong>Dimensionality reduction</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">DefaultAssay</span>(GSVA.enrichment) &lt;-<span class="st"> &#39;integrated&#39;</span>
+GSVA.enrichment &lt;-<span class="st"> </span><span class="kw">RunPCA</span>(liver.integrated.pathway, <span class="dt">features =</span> <span class="kw">VariableFeatures</span>(<span class="dt">object =</span> liver.integrated.pathway), <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+GSVA.enrichment &lt;-<span class="st"> </span><span class="kw">RunTSNE</span>(liver.integrated.pathway, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>, <span class="dt">max_iter =</span> <span class="dv">2000</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+GSVA.enrichment &lt;-<span class="st"> </span><span class="kw">RunUMAP</span>(liver.integrated.pathway, <span class="dt">dims =</span> <span class="dv">1</span>:<span class="dv">30</span>)
+<span class="kw">saveRDS</span>(GSVA.enrichment, <span class="dt">file =</span> <span class="st">&#39;./finaloutput/GSVA.pathway.final.RData&#39;</span>)</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">funct.umap &lt;-<span class="st"> </span><span class="kw">DimPlot</span>(GSVA.enrichment, <span class="dt">label =</span> <span class="ot">TRUE</span>, <span class="dt">repel =</span> <span class="ot">TRUE</span>, <span class="dt">split.by =</span> <span class="st">&#39;treatment&#39;</span>) +<span class="st"> </span><span class="kw">NoLegend</span>()
+<span class="kw">ggsave</span>(<span class="dt">file =</span> <span class="st">&#39;functional.umap.png&#39;</span>, <span class="dt">plot =</span> funct.umap, <span class="dt">width =</span> <span class="dv">12</span>, <span class="dt">height =</span> <span class="dv">4</span>)</code></pre>
+<p><img src = "functional.umap.png", width = 100%> <em><strong>Figure 13.</strong></em> UMAP visualization of functional enrichment analysis.</p>
+</div>
+<div id="identification-of-marker-functions" class="section level3">
+<h3><strong>Identification of marker functions</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r">pathway.integrated.markers &lt;-<span class="st"> </span><span class="kw">FindAllMarkers</span>(GSVA.enrichment, <span class="dt">min.fc =</span> <span class="fl">0.25</span>, <span class="dt">only.pos =</span> <span class="ot">TRUE</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)
+<span class="kw">saveRDS</span>(pathway.integrated.markers, <span class="dt">file =</span> <span class="st">&#39;./finaloutput/pathway.integrated.markers.RData&#39;</span>)</code></pre>
+<p><a href="#top">Back to top</a></p>
+</div>
 </div>
 </div>
 

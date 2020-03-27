@@ -47,20 +47,938 @@ library(gam, quietly = TRUE) #Dependency
 library(DESeq2, quietly = TRUE) #Pseudobulk analysis
 ```
 
+### __Create a function for easier data import__
+```{r importfunction}
+#User-defined data import function
+import10x <- function(path, sample.id, treatment, batch_ID, cellmin, featmin) {
+  seu.data <- Read10X(data.dir = path)
+  seu <- CreateSeuratObject(counts = seu.data, project = sample.id, min.cells = cellmin, min.features = featmin)
+  seu[["percent.mt"]] <- PercentageFeatureSet(seu, pattern = "^mt-") #Calculate percent mitochondrial genes
+  seu[["batch_ID"]] <- batch_ID #Assign a batch ID in the metadata
+  seu$treatment <- treatment
+  return(list(ssize = dim(seu), seu.object = seu)) #Indicate treatment group in the metadata
+}
+```
+
 ### __Display session information__
 ```{r sessioninfo}
 sessionInfo()
 ```
 <a href="#top">Back to top</a>
 
-## __Testing a ggplot graph__
-Some random text here. 
-```{r}
-p <- ggplot(mtcars, aes(mpg, wt)) +
-  geom_point() +
-  geom_smooth(method = lm)
+## __Data import__
+### __Import datasets__
+<p align="justify">Raw sequencing reads were aligned using __CellRanger 3.0.2__ (10X Genomics). Datasets were filtered to include only genes detected in at least __3__ nuclei, and nuclei which express at least __200__ unique genes (features). Nuclei which possess >= __1%__ mitochondrial RNA were also excluded from subsequent analyses as nuclei isolation should result in little to no mitochondrial contamination.</p>
+```{r importdata}
+cellmin = 3 
+featmin = 200 
+mtmax = 1 
 
-ggsave(file = 'p.png', plot = p, height = 6, width = 6)
+VEH62 <- import10x(paste(path, "VEH62/outs/filtered_feature_bc_matrix/", sep = ""), 
+                   "VEH62", "CONTROL", "Day2", cellmin, featmin)
+VEH62$seu.object <- subset(VEH62$seu.object, subset = percent.mt < mtmax)
+
+VEH64 <- import10x(paste(path, "VEH64/outs/filtered_feature_bc_matrix/", sep = ""), 
+                   "VEH64", "CONTROL", "Day1", cellmin, featmin)
+VEH64$seu.object <- subset(VEH64$seu.object, subset = percent.mt < mtmax)
+
+TCDD51 <- import10x(paste(path, "TCDD51/outs/filtered_feature_bc_matrix/", sep = ""), 
+                    "TCDD51", "TCDD", "Day2", cellmin, featmin)
+TCDD51$seu.object <- subset(TCDD51$seu.object, subset = percent.mt < mtmax)
+
+TCDD59 <- import10x(paste(path, "TCDD59/outs/filtered_feature_bc_matrix/", sep = ""), 
+                    "TCDD59", "TCDD", "Day2", cellmin, featmin)
+TCDD59$seu.object <- subset(TCDD59$seu.object, subset = percent.mt < mtmax)
 ```
-<img src = "p.png", width = 100%><br>
+
+### __Dataset summary (pre-QC)__
+```{r summarizing, echo = FALSE}
+data.summary <- cbind(rbind(VEH62$ssize, VEH64$ssize, TCDD51$ssize, TCDD59$ssize), 
+                      rbind(dim(VEH62$seu.object), dim(VEH64$seu.object), dim(TCDD51$seu.object), 
+                      dim(TCDD59$seu.object)))
+
+row.names(data.summary) <- c("VEH62", 
+                             "VEH64", 
+                             "TCDD51", 
+                             "TCDD59")
+
+colnames(data.summary) <- c("Number of Genes", 
+                            "Number of Nuclei", 
+                            "Number of Genes after QC", 
+                            "Number of Nuclei after QC")
+```
+
+*__Table 1.__* Number of genes and nuclei sequenced in liver samples of mice gavaged with sesame oil vehicle or 30 ug/kg TCDD every 4 days for 28 days.
+```{r echo=FALSE, max.print = 1}
+knitr::kable(data.summary, align = 'ccccc')
+median.genes <- median(c(VEH62$seu.object$nFeature_RNA, VEH64$seu.object$nFeature_RNA, TCDD51$seu.object$nFeature_RNA, TCDD59$seu.object$nFeature_RNA))
+median.umi <- median(c(VEH62$seu.object$nCount_RNA, VEH64$seu.object$nCount_RNA, TCDD51$seu.object$nCount_RNA, TCDD59$seu.object$nCount_RNA))
+```
+
+<p align="justify">A total of `r sum(data.summary[,2])` (`r sum(data.summary[1:2,2])` vehicle and `r sum(data.summary[3:4,2])` treated) nuclei were transcriptomes were profiled. The average number of genes detected in each sample was `r as.integer(round(mean(data.summary[,1]),0))` and the median number of unique expressed genes in individual nuclei was  `r median.genes` with a median UMI count of with a median UMI count of `r median.umi`</p>
+
+### __Prepare datasets for next steps__
+```{r prepnextstep}
+samples.list <- c(VEH62$seu.object, 
+                  VEH64$seu.object, 
+                  TCDD51$seu.object, 
+                  TCDD59$seu.object)
+```
+<a href="#top">Back to top</a>
+
+
+## __Scater QC__
+<a href="https://www.ncbi.nlm.nih.gov/pubmed/28088763" target="_blank">Scater</a> uses the SingleCellExperiment format.
+
+### __Convert Seurat object to singleCellExperiment format__
+```{r sceconversion, include = TRUE}
+VEH62.sce <- as.SingleCellExperiment(samples.list[[1]])
+VEH64.sce <- as.SingleCellExperiment(samples.list[[2]])
+TCDD51.sce <- as.SingleCellExperiment(samples.list[[3]])
+TCDD59.sce <- as.SingleCellExperiment(samples.list[[4]])
+```
+
+### __Calculate QC metrics__
+We use scater to calculate various QC metrics including distribution of highest abundance genes and frequency
+```{r scater_qc}
+VEH62.sce <- calculateQCMetrics(VEH62.sce)
+VEH64.sce <- calculateQCMetrics(VEH64.sce)
+TCDD51.sce <- calculateQCMetrics(TCDD51.sce)
+TCDD59.sce <- calculateQCMetrics(TCDD59.sce)
+```
+
+```{r prep_scater_plots, echo = FALSE}
+v62.1 <- plotHighestExprs(VEH62.sce, exprs_values = 'counts', n = 20)
+ggsave(file = 'test1.png', plot = v62.1, width = 2, height = 4)
+v62.2 <- plotExprsFreqVsMean(VEH62.sce)
+
+v64.1 <- plotHighestExprs(VEH64.sce, exprs_values = 'counts', n = 20)
+v64.2 <- plotExprsFreqVsMean(VEH64.sce)
+
+t51.1 <- plotHighestExprs(TCDD51.sce, exprs_values = 'counts', n = 20)
+t51.2 <- plotExprsFreqVsMean(TCDD51.sce)
+
+t59.1 <- plotHighestExprs(TCDD59.sce, exprs_values = 'counts', n = 20)
+t59.2 <- plotExprsFreqVsMean(TCDD59.sce)
+```
+
+```{r combine_scater_plots, echo = FALSE}
+tempPlot <- plot_grid(v62.1, v64.1, t51.1, t59.1, labels = c("V62","V64","T51","T59"))
+ggsave(file = 'scatar1.png', plot = tempPlot, width = 7, height = 5)
+```
+
+```{r combine_scater_plots2, echo = FALSE}
+tempPlot <- plot_grid(v62.2, v64.2, t51.2, t59.2, labels = c("V62","V64","T51","T59"))
+ggsave(file = 'scatar2.png', plot = tempPlot, width = 7, height = 5)
+```
+
+<img src = "scatar1.png", width = 50%><img src = "scatar2.png", width = 50%>
+*__Figure 1.__* QC plots from scater showing __(left)__ genes with highest expression in individual nuclei and __(right)__ frequency of genes relative to their expression level.
+
+### __PCA Outlier Detection__
+```{r scater_pca}
+VEH62.sce <- runPCA(VEH62.sce, use_coldata = TRUE, detect_outliers = TRUE)
+
+VEH64.sce <- runPCA(VEH64.sce, use_coldata = TRUE, detect_outliers = TRUE)
+
+TCDD51.sce <- runPCA(TCDD51.sce, use_coldata = TRUE, detect_outliers = TRUE)
+
+TCDD59.sce <- runPCA(TCDD59.sce, use_coldata = TRUE, detect_outliers = TRUE)
+```
+
+```{r plot_scater_pca, echo = FALSE}
+p1 <- plotReducedDim(VEH62.sce, use_dimred = "PCA_coldata")
+p2 <- plotReducedDim(VEH64.sce, use_dimred = "PCA_coldata")
+p3 <- plotReducedDim(TCDD51.sce, use_dimred = "PCA_coldata")
+p4 <- plotReducedDim(TCDD59.sce, use_dimred = "PCA_coldata")
+
+tempPlot <- plot_grid(p1, p2, p3, p4, labels = c("V62","V64","T51","T59"))
+ggsave(file = 'scatar3.png', plot = tempPlot, width = 7, height = 5)
+```
+<img src = "scatar3.png", width = 70%><br>
+*__Figure 2.__* Principal components analysis of scatar QC metrics
+
+```{r summarize_scater_QC, echo = FALSE}
+V62.summary <- data.frame(unclass(summary(VEH62.sce$outlier)))
+V64.summary <- data.frame(unclass(summary(VEH64.sce$outlier)))
+T51.summary <- data.frame(unclass(summary(TCDD51.sce$outlier)))
+T59.summary <- data.frame(unclass(summary(TCDD59.sce$outlier)))
+```
+
+```{r scater_QC_table, echo = FALSE}
+V62.summary <- data.frame(cbind(summary(VEH62.sce$outlier))[2:3, 1])
+colnames(V62.summary) <- 'QC Flagged - VE62'
+V64.summary <- data.frame(cbind(summary(VEH64.sce$outlier))[2, 1])
+colnames(V64.summary) <- 'QC Flagged - VEH64'
+T51.summary <- data.frame(cbind(summary(TCDD51.sce$outlier))[2:3, 1])
+colnames(T51.summary) <- 'QC Flagged - TCDD51'
+T59.summary <- data.frame(cbind(summary(TCDD59.sce$outlier))[2:3, 1])
+colnames(T59.summary) <- 'QC Flagged - TCDD59'
+```
+
+*__Table 2.__* Summary of nuclei passing or being flagged in each sample.
+```{r echo = FALSE}
+merged.table <- merge(V62.summary, V64.summary, by = "row.names", all = TRUE)
+rownames(merged.table) <- merged.table[,1]
+merged.table <- merged.table[,-1]
+merged.table <- merge(merged.table, T51.summary, by = "row.names", all = TRUE)
+rownames(merged.table) <- merged.table[,1]
+merged.table <- merged.table[,-1]
+merged.table <- merge(merged.table, T59.summary, by = "row.names", all = TRUE)
+knitr::kable(merged.table, align = 'cccc')
+```
+
+### __Return to object list__
+Replace the seurat objects with the SCEs containing the QC metrics
+```{r update_list1}
+samples.list[[1]] <- as.Seurat(VEH62.sce)
+samples.list[[2]] <- as.Seurat(VEH64.sce)
+samples.list[[3]] <- as.Seurat(TCDD51.sce)
+samples.list[[4]] <- as.Seurat(TCDD59.sce)
+```
+<a href="#top">Back to top</a>
+
+## __Doublet detection__
+### __Preparing sample datasets for doublet detection__
+A clustering resolution of __0.2__ was selected based on preliminary evaluations which produced similar number of clusters as identified hepatic cell types from previous studies.
+```{r preparedatasets}
+# Normalize and scale datasets independently
+samples.list <- lapply(X = samples.list, FUN = function(x) {
+  x <- NormalizeData(x, normalization.method = "LogNormalize", scale.factor = 10000, verbose = FALSE)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+  x <- ScaleData(x, features = rownames(x), verbose = FALSE)
+})
+
+# Run dimensionality reduction and identify nuclei clusters
+samples.list <- lapply(X = samples.list, FUN = function(x) {
+  DefaultAssay(x) <- 'RNA'  
+  x <- RunPCA(x, features = VariableFeatures(object = x), verbose = FALSE)
+  x <- FindNeighbors(x, reduction = "pca", dims = 1:20, verbose = FALSE)
+  x <- FindClusters(x, resolution = 0.2, verbose = FALSE)
+  x <- RunTSNE(x, dims = 1:30, max_iter = 2000, verbose = FALSE)
+  x <- RunUMAP(x, dims = 1:30, verbose = FALSE)
+})
+```
+
+```{r echo = FALSE}
+UMAP_V62 <- DimPlot(samples.list[[1]], label  = TRUE, pt.size = 0.5, reduction = 'umap') + NoLegend()
+UMAP_V64 <- DimPlot(samples.list[[2]], label  = TRUE, pt.size = 0.5, reduction = 'umap') + NoLegend()
+UMAP_T51 <- DimPlot(samples.list[[3]], label  = TRUE, pt.size = 0.5, reduction = 'umap') + NoLegend()
+UMAP_T59 <- DimPlot(samples.list[[4]], label  = TRUE, pt.size = 0.5, reduction = 'umap') + NoLegend()
+```
+
+```{r echo = FALSE}
+combinedPlot <- plot_grid(UMAP_V62, UMAP_V64, UMAP_T51, UMAP_T59, labels = c("V62","V64","T51","T59"))
+ggsave(file = 'umap_samples.png', plot = combinedPlot, width = 8, height = 8)
+```
+<img src = "umap_samples.png", width = 100%><br>
+*__Figure 3.__* UMAP visualization of individual liver samples.
+
+### __Doublet detection__
+Doublet detection is performed using <a href="https://github.com/chris-mcginnis-ucsf/DoubletFinder")" target="_blank">DoubletFinder</a> assuming a __3.1%__ doublet formation rate based on the low rate for 10X genomics shown <a href="https://www.biotech.wisc.edu/services/gec/services/rochelightcyclerservices" target="_blank">here</a>
+
+  * ~0.8% per 1,000 cells
+  * ~1.6% per 2,000 cells
+  * ~2.3% per 3,000 cells
+  * ~3.1% per 4,000 cells
+  * ~3.9% per 5,000 cells
+  * ...
+
+#### __VEH62__
+```{r message = FALSE, results = "hide", fig.width = 1, fig.height = 1}
+sweep.res.list_liver <- paramSweep_v3(samples.list[[1]], PCs = 1:10, sct = FALSE)
+sweep.stats_liver <- summarizeSweep(sweep.res.list_liver, GT = FALSE)
+bcmvn_liver <- find.pK(sweep.stats_liver)
+
+homotypic.prop <- modelHomotypic(samples.list[[1]]@meta.data$SCT_snn_res.0.2)   
+nExp_poi <- round(0.031*length(rownames(samples.list[[1]]@meta.data))) # Assuming 3.1% doublet formation rate - tailor for your dataset
+nExp_poi.adj <- round(nExp_poi*(1 - homotypic.prop))
+
+samples.list[[1]] <- doubletFinder_v3(samples.list[[1]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+samples.list[[1]] <- doubletFinder_v3(samples.list[[1]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = "pANN_0.25_0.09_105", sct = FALSE)
+```
+
+#### __VEH64__
+```{r message = FALSE, results = "hide", fig.width = 1, fig.height = 1}
+sweep.res.list_liver <- paramSweep_v3(samples.list[[2]], PCs = 1:10, sct = FALSE)
+sweep.stats_liver <- summarizeSweep(sweep.res.list_liver, GT = FALSE)
+bcmvn_liver <- find.pK(sweep.stats_liver)
+
+homotypic.prop <- modelHomotypic(samples.list[[2]]@meta.data$SCT_snn_res.0.2)           
+nExp_poi <- round(0.031*length(rownames(samples.list[[2]]@meta.data)))  # Assuming 3.1% doublet formation rate - tailor for your dataset
+nExp_poi.adj <- round(nExp_poi*(1 - homotypic.prop))
+
+samples.list[[2]] <- doubletFinder_v3(samples.list[[2]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+samples.list[[2]] <- doubletFinder_v3(samples.list[[2]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = "pANN_0.25_0.09_217", sct = FALSE)
+```
+
+#### __TCDD51__
+```{r message = FALSE, results = "hide", fig.width = 1, fig.height = 1}
+sweep.res.list_liver <- paramSweep_v3(samples.list[[3]], PCs = 1:10, sct = FALSE)
+sweep.stats_liver <- summarizeSweep(sweep.res.list_liver, GT = FALSE)
+bcmvn_liver <- find.pK(sweep.stats_liver)
+
+homotypic.prop <- modelHomotypic(samples.list[[3]]@meta.data$SCT_snn_res.0.2)         
+nExp_poi <- round(0.031*length(rownames(samples.list[[3]]@meta.data)))  # Assuming 3.1% doublet formation rate - tailor for your dataset
+nExp_poi.adj <- round(nExp_poi*(1 - homotypic.prop))
+
+samples.list[[3]] <- doubletFinder_v3(samples.list[[3]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+samples.list[[3]] <- doubletFinder_v3(samples.list[[3]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = "pANN_0.25_0.09_94", sct = FALSE)
+```
+
+#### __TCDD59__
+```{r message = FALSE, results = "hide", fig.width = 1, fig.height = 1}
+sweep.res.list_liver <- paramSweep_v3(samples.list[[4]], PCs = 1:10, sct = FALSE)
+sweep.stats_liver <- summarizeSweep(sweep.res.list_liver, GT = FALSE)
+bcmvn_liver <- find.pK(sweep.stats_liver)
+
+homotypic.prop <- modelHomotypic(samples.list[[4]]@meta.data$SCT_snn_res.0.2)   
+nExp_poi <- round(0.031*length(rownames(samples.list[[4]]@meta.data)))  # Assuming 3.1% doublet formation rate - tailor for your dataset
+nExp_poi.adj <- round(nExp_poi*(1 - homotypic.prop))
+
+samples.list[[4]] <- doubletFinder_v3(samples.list[[4]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+samples.list[[4]] <- doubletFinder_v3(samples.list[[4]], PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = "pANN_0.25_0.09_101", sct = FALSE)
+```
+
+### __Removing doublets__
+```{r}
+# VEH62
+samples.list[[1]] <- subset(samples.list[[1]], subset = outlier == FALSE)
+samples.list[[1]] <- subset(samples.list[[1]], subset = DF.classifications_0.25_0.09_105 == "Singlet")
+
+# VEH64
+samples.list[[2]] <- subset(samples.list[[2]], subset = outlier == FALSE)
+samples.list[[2]] <- subset(samples.list[[2]], subset = DF.classifications_0.25_0.09_217 == "Singlet")
+
+# TCDD51
+samples.list[[3]] <- subset(samples.list[[3]], subset = outlier == FALSE)
+samples.list[[3]] <- subset(samples.list[[3]], subset = DF.classifications_0.25_0.09_94 == "Singlet")
+
+# TCDD59
+samples.list[[4]] <- subset(samples.list[[4]], subset = outlier == FALSE)
+samples.list[[4]] <- subset(samples.list[[4]], subset = DF.classifications_0.25_0.09_101 == "Singlet")
+```
+
+### __Summarizing scater QC__
+*__Table 4.__* Number of genes and nuclei sequenced in liver samples of mice gavaged with sesame oil vehicle or 30 ug/kg TCDD every 4 days for 28 days.
+```{r}
+print(data.summary)
+data.summary
+print(class(data.summary))
+class(data.summary)
+data.summary <- data.frame(data.summary)
+```
+
+
+```{r echo=FALSE, max.print = 1}
+data.summary[,'Number of Nuclei after scater'] <- 0
+```
+
+```{r echo=FALSE, max.print = 1}
+data.summary['VEH62','Number of Nuclei after scater'] <- dim(samples.list[[1]])[2]
+```
+
+```{r echo=FALSE, max.print = 1}
+data.summary['VEH64','Number of Nuclei after scater'] <- dim(samples.list[[2]])[2]
+```
+
+```{r echo=FALSE, max.print = 1}
+data.summary['TCDD51','Number of Nuclei after scater'] <- dim(samples.list[[3]])[2]
+```
+
+```{r echo=FALSE, max.print = 1}
+data.summary['TCDD59','Number of Nuclei after scater'] <- dim(samples.list[[4]])[2]
+knitr::kable(data.summary, align = 'cccccc')
+```
+
+<a href="#top">Back to top</a>
+
+## __Pseudobulk analysis and comparison__
+### __Sum counts accross all cells__
+To create pseudobulk data we use the scater packages sumCountsAcrossCells function which sums the counts accross all cells for each gene.
+```{r}
+pbVEH62 <- as.matrix(sumCountsAcrossCells(VEH62.sce, ids = rep("VEH62", ncol(VEH62.sce))))
+pbVEH64 <- as.matrix(sumCountsAcrossCells(VEH64.sce, ids = rep("VEH64", ncol(VEH64.sce))))
+pbTCDD51 <- as.matrix(sumCountsAcrossCells(TCDD51.sce, ids = rep("VTCDD51", ncol(TCDD51.sce))))
+pbTCDD59 <- as.matrix(sumCountsAcrossCells(TCDD59.sce, ids = rep("TCDD59", ncol(TCDD59.sce))))
+saveRDS(pbVEH62, file = 'pbVEH62.RData')
+saveRDS(pbVEH64, file = 'pbVEH64.RData')
+saveRDS(pbTCDD51, file = 'pbTCDD51.RData')
+saveRDS(pbTCDD59, file = 'pbTCDD59.RData')
+```
+
+### __Differential expression analysis__
+We create a matrix with all pseudobulk data for all genes in order to perform differential expression analysis using the DESeq2 package.
+```{r}
+count.matrix <- merge(as.matrix(pbVEH62), as.matrix(pbVEH64), by = 'row.names', all = TRUE)
+rownames(count.matrix) <- count.matrix$Row.names
+count.matrix <- count.matrix[ ,-1]
+
+count.matrix <- merge(count.matrix, as.matrix(pbTCDD51), by = 'row.names', all = TRUE)
+rownames(count.matrix) <- count.matrix$Row.names
+count.matrix <- count.matrix[ ,-1]
+
+count.matrix <- merge(count.matrix, as.matrix(pbTCDD59), by = 'row.names', all = TRUE)
+rownames(count.matrix) <- count.matrix$Row.names
+count.matrix <- count.matrix[ ,-1]
+
+count.matrix[is.na(count.matrix)] <- 0
+```
+
+A data frame with the sample information is used for differential expression analysis
+```{r}
+sample_name <- c("VEH62", "VEH64", "TCDD51", "TCDD59")
+treatment <- c("CONTROL", "CONTROL", "TCDD", "TCDD")
+
+coldata <- data.frame(sample_name, treatment)
+
+coldata$treatment <- factor(coldata$treatment, levels = c("CONTROL", "TCDD"))
+
+dds <- DESeqDataSetFromMatrix(countData = count.matrix, 
+                              colData = coldata,
+                              design = ~ treatment)
+
+dds <- DESeq(dds)
+```
+
+Look at differential expression between treatment groups
+```{r}
+pb.data <- results(dds, name = 'treatment_TCDD_vs_CONTROL')
+```
+
+```{r}
+saveRDS(pb.data, file = 'pseudobulk.deseq.RData')
+```
+
+### __Comparison to bulk RNAseq data__
+We can import a true bulk RNAseq dataset, generated using the exact same study design, for comparison.
+```{r}
+bulk.data <- read.table('./Prj140_RNASeq_Liver_MaleTCDD_28D_RDDR_TZ.txt', sep = '\t', header = TRUE, row.names = 2) 
+pb.bulk.merge <- merge(bulk.data, data.frame(pb.data), by = "row.names")[,c("Row.names","Ensembl_ID", "FC_30", "P1.t._30", "log2FoldChange", "pvalue", "padj")]
+rownames(pb.bulk.merge) <- pb.bulk.merge[,"Row.names"]
+pb.bulk.merge <- pb.bulk.merge[,-1]
+colnames(pb.bulk.merge) <- c("Ensembl_ID", "bulk.fc", "bulk.p1t", "pb.log2.fc", "pb.pval", "pb.padj")
+pb.bulk.merge$bulk.log2.fc <- log(pb.bulk.merge$bulk.fc, 2)
+pb.bulk.merge$pb.fc <- 2^(pb.bulk.merge$pb.log2.fc)
+```
+
+```{r echo = FALSE}
+bulk.fc.threshold <- 2
+bulk.p1t.threshold <- 0.8
+pb.fc.threshold <- 2
+pb.padj.threshold <- 0.05
+
+plot.subset <- subset(pb.bulk.merge, abs(pb.bulk.merge$bulk.log2.fc) >= log(bulk.fc.threshold,2) &
+                                     pb.bulk.merge$bulk.p1t >= bulk.p1t.threshold &
+                                     abs(pb.bulk.merge$pb.log2.fc) >= log(pb.fc.threshold,2) &
+                                     pb.bulk.merge$pb.padj <= pb.padj.threshold)
+
+
+pb.bulk.plot <- ggplot(plot.subset, aes(x = bulk.log2.fc, y = pb.log2.fc)) +
+  geom_point(aes(col = pb.padj, size = bulk.p1t)) +
+  scale_size_continuous(range = c(0.1,2)) +
+  labs(x="Bulk RNAseq log2(fold change)",
+       y="Pseudobulk RNAseq log2(fold change)") +
+  theme_bw()
+
+ggsave(file = 'pb.bulk.png', plot = pb.bulk.plot, width = 6, height = 4)
+```
+<img src = "pb.bulk.png", width = 50%><br>
+*__Figure 4.__* Comparison of pseudobulk and bulk RNAseq expression fold changes for differentially expressed genes common to both datasets (|fold change| >= 2, P1(t) >= 0.8, adjusted p-value <= 0.05).
+
+__Table 5__. Genes exhibiting divergent differential expression foldd changes between pseudobulk and bulk RNAseq datasets
+```{r echo=FALSE, max.print = 1}
+table.subset <- subset(plot.subset, (plot.subset$bulk.log2.fc > 0 & plot.subset$pb.log2.fc < 0) | (plot.subset$bulk.log2.fc < 0 & plot.subset$pb.log2.fc > 0))[,c("bulk.fc", "bulk.p1t", "pb.fc", "pb.padj")]
+knitr::kable(table.subset, align = 'ccccc')
+```
+
+<a href="#top">Back to top</a>
+
+## __Sample Integration__
+### __Identify anchors and integrate all samples__
+```{r}
+liver.anchors <- FindIntegrationAnchors(object.list = samples.list, scale = FALSE)
+liver.integrated <- IntegrateData(anchorset = liver.anchors, dims = 1:30)
+```
+
+### __Scaling and dimensionality reduction__
+```{r}
+DefaultAssay(liver.integrated) <- "integrated"
+liver.integrated <- ScaleData(liver.integrated, verbose = FALSE)
+liver.integrated <- RunPCA(liver.integrated, features = VariableFeatures(object = liver.integrated))
+liver.integrated <- RunTSNE(liver.integrated, dims = 1:30, max_iter = 2000, verbose = FALSE)
+liver.integrated <- RunUMAP(liver.integrated, dims = 1:30)
+```
+
+```{r}
+plots <- DimPlot(liver.integrated, group.by = c("orig.ident", "treatment"), combine = FALSE)
+```
+
+```{r echo = FALSE}
+umap.separated <- CombinePlots(plots)
+ggsave(file = 'dplot.png', plot = umap.separated, width = 12, height = 4)
+```
+
+<img src = "dplot.png", width = 100%>
+*__Figure 6.__* UMAP visualization of integrated samples seperated by __(left)__ sample ID or __(right)__ treatment group.
+
+### __Clustering__
+```{r}
+liver.integrated <- FindNeighbors(liver.integrated, dims = 1:30, verbose = FALSE)
+liver.integrated <- FindClusters(liver.integrated, resolution = 0.2, verbose = FALSE)
+```
+
+```{r echo = FALSE}
+umap.clusters <- DimPlot(liver.integrated, label = TRUE, reduction = 'umap') + NoLegend()
+ggsave(file = 'dplot2.png', plot = umap.clusters, width = 4, height = 3)
+```
+<img src = "dplot2.png", width = 60%><br>
+*__Figure 5.__* UMAP visualization of clustered nuclei.
+
+### __Normalize and scale integrated samples__
+```{r}
+DefaultAssay(liver.integrated) <- 'RNA'
+liver.integrated <- NormalizeData(liver.integrated, normalization.method = "LogNormalize", scale.factor = 10000, verbose = FALSE)
+all.genes <- rownames(liver.integrated)
+liver.integrated <- ScaleData(object = liver.integrated, features = all.genes)
+```
+
+### __Identify cluster marker genes__
+```{r}
+liver.integrated.markers <- FindAllMarkers(liver.integrated, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, verbose = FALSE)
+liver.integrated.top <- liver.integrated.markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_logFC) # Only look at top 5
+```
+
+```{r echo = FALSE}
+heatmap.integrated <- DoHeatmap(liver.integrated, features = liver.integrated.top$gene, angle = 90, size = 4) + NoLegend() + scale_fill_gradientn(colors = c("#0000ff", "#ffffff", "#ff0000"))
+ggsave(file = 'heatmap.png', plot = heatmap.integrated, width = 6, height = 14)
+```
+<img src = "heatmap.png", width = 70%><br>
+*__Figure 6.__* Heatmap of top 5 cluster marker genes.
+
+<a href="#top">Back to top</a>
+
+## __Comparing to published datasets__
+### __Importing published datasets__
+_Halpern, K. B., Shenhav, R., Matcovitch-Natan, O., Toth, B., Lemze, D., Golan, M., Massasa, E. E., Baydatch, S., Landen, S., Moor, A. E., Brandis, A., Giladi, A., Avihail, A. S., David, E., Amit, I. and Itzkovitz, S. (2017). Single-cell spatial reconstruction reveals global division of labour in the mammalian liver. Nature 542(7641), 352-356. [PMID: 28166538](https://www.ncbi.nlm.nih.gov/pubmed/28166538)_
+```{r}
+#halpern <- readRDS('./PublishedData/HalpernLiver.RData')
+halpern <- readRDS('./PublishedData/HalpernLiverLayers.RData')
+DefaultAssay(halpern) <- 'RNA'
+```
+A total of __`r dim(halpern)[2]`__ cells were sequenced using MARS-seq with a total of __`r dim(halpern)[1]`__ genes detected. The median number of genes detected per cell was __`r median(halpern$nFeature_RNA)`__ while the median UMIs per cell was __`r as.integer(round(median(halpern$nCount_RNA),0))`__. <br><br>
+
+_Halpern, K. B., Shenhav, R., Massalha, H., Toth, B., Egozi, A., Massasa, E. E., Medgalia, C., David, E., Giladi, A., Moor, A. E., Porat, Z., Amit, I. and Itzkovitz, S. (2018). Paired-cell sequencing enables spatial gene expression mapping of liver endothelial cells. Nature biotechnology. [PMID: 30222169](https://www.ncbi.nlm.nih.gov/pubmed/30222169)_
+
+```{r}
+LEC.halpern <- readRDS('./PublishedData/HalpernLEC.RData')
+DefaultAssay(LEC.halpern) <- 'RNA'
+```
+A total of __`r dim(LEC.halpern)[2]`__ cells were sequenced using MARS-seq with a total of __`r dim(LEC.halpern)[1]`__ genes detected. The median number of genes detected per cell was __`r median(LEC.halpern$nFeature_RNA)`__ while the median UMIs per cell was __`r as.integer(round(median(LEC.halpern$nCount_RNA),0))`__. <br><br>
+
+
+_Xiong, X., Kuang, H., Ansari, S., Liu, T., Gong, J., Wang, S., Zhao, X. Y., Ji, Y., Li, C., Guo, L., Zhou, L., Chen, Z., Leon-Mimila, P., Chung, M. T., Kurabayashi, K., Opp, J., Campos-Perez, F., Villamil-Ramirez, H., Canizales-Quinteros, S., Lyons, R., Lumeng, C. N., Zhou, B., Qi, L., Huertas-Vazquez, A., Lusis, A. J., Xu, X. Z. S., Li, S., Yu, Y., Li, J. Z. and Lin, J. D. (2019). Landscape of Intercellular Crosstalk in Healthy and NASH Liver Revealed by Single-Cell Secretome Gene Analysis. Mol Cell 75(3), 644-660 e5. [PMID: 31398325](https://www.ncbi.nlm.nih.gov/pubmed/31398325)_
+
+```{r}
+Xiong.nash <- readRDS('./PublishedData/xiong.nash.cellannotated.RData')
+DefaultAssay(Xiong.nash) <- 'RNA'
+Xiong.nash <- FindVariableFeatures(object = Xiong.nash)
+```
+A total of __`r dim(Xiong.nash)[2]`__ cells were sequenced using the 10X Genomics platform with a total of __`r dim(Xiong.nash)[1]`__ genes detected. The median number of genes detected per cell was __`r median(Xiong.nash$nFeature_RNA)`__ while the median UMIs per cell was __`r as.integer(round(median(Xiong.nash$nCount_RNA),0))`__. <br><br>
+
+```{r}
+DefaultAssay(liver.integrated) <- 'RNA'
+```
+
+### __Cell/nuclei label prediction using Seurat__
+#### __Halpern et al. (2017)__
+```{r}
+liver.anchors <- FindTransferAnchors(reference = halpern, query = liver.integrated, dims = 1:30)
+predictions <- TransferData(anchorset = liver.anchors, refdata = halpern$celltype, dims = 1:30)
+liver.integrated <- AddMetaData(liver.integrated, metadata = predictions)
+```
+
+#### __Halpern et al. (2018)__
+```{r}
+liver.anchors <- FindTransferAnchors(reference = LEC.halpern, query = liver.integrated, dims = 1:30)
+predictions <- TransferData(anchorset = liver.anchors, refdata = LEC.halpern$celltype, dims = 1:30)
+liver.integrated <- AddMetaData(liver.integrated, metadata = predictions)
+```
+
+#### __Xiong et al. (2019)__
+```{r}
+liver.anchors <- FindTransferAnchors(reference = Xiong.nash, query = liver.integrated, dims = 1:30)
+predictions <- TransferData(anchorset = liver.anchors, refdata = Xiong.nash$celltype, dims = 1:30)
+liver.integrated <- AddMetaData(liver.integrated, metadata = predictions)
+```
+
+
+### __Evaluating prediction scores__
+```{r}
+prediction.scores <- liver.integrated@meta.data[, grepl("^prediction|integrated_snn_res.0.2", names(liver.integrated@meta.data))]
+prediction.scores <- prediction.scores[,-which(names(prediction.scores) == "prediction.score.max")]
+colnames(prediction.scores) <- gsub("prediction.score.", "", colnames(prediction.scores))
+prediction.scores <- melt(prediction.scores, id.vars = "integrated_snn_res.0.2", variable.name = "source", value.name = "score")
+```
+
+```{r results = "hide"}
+prediction.matrix <- tapply(prediction.scores$score, list(prediction.scores$integrated_snn_res.0.2, prediction.scores$source), median)
+liver.hm <- pheatmap(prediction.matrix, cluster_rows = FALSE, cluster_cols = FALSE, color = colorRampPalette(c("white","red"))(200), display_numbers = FALSE, silent = TRUE)
+```
+
+```{r echo=FALSE}
+write.table(prediction.matrix, file = './finaloutput/prediction.matrix.liver.txt', sep = '\t')
+ggsave(file = 'hmap_liver.png', plot = liver.hm, width = 8, height = 4)
+```
+<img src = "dplot2.png", width = 30%><img src = "hmap_liver.png", width = 70%><br>
+*__Figure 7.__* __(Left)__ UMAP visualiation of annotated clusters and __(right)__ heatmap demonstrating the scaled median label transfer prediction score.
+
+### __Reannotating clusters using common names__
+```{r}
+# Common cell type names
+Cluster.0 <- "Hepatocytes - Midcentral"
+Cluster.1 <- "Hepatocytes - Portal"
+Cluster.2 <- "Endothelial Cells"
+Cluster.3 <- "Macrophages"
+Cluster.4 <- "Hepatocytes - Central"
+Cluster.5 <- "Hepatocytes - Midportal"
+Cluster.6 <- "Stellate Cells"
+Cluster.7 <- "B Cells"
+Cluster.8 <- "T Cells"
+Cluster.9 <- "Cholangiocytes"
+Cluster.10 <- "Neutrophils"
+
+new.cluster.ids <- c(Cluster.0, Cluster.1, Cluster.2, Cluster.3, Cluster.4, Cluster.5, Cluster.6, Cluster.7, Cluster.8, Cluster.9, Cluster.10)
+
+names(new.cluster.ids) <- levels(liver.integrated)
+liver.integrated <- RenameIdents(liver.integrated, new.cluster.ids)
+liver.integrated$celltype <- Idents(liver.integrated)
+
+liver.integrated$celltype <- Idents(liver.integrated)
+
+liver.integrated$celltype <- factor(liver.integrated$celltype, levels = c(
+  "Hepatocytes - Central",
+  "Hepatocytes - Midcentral",
+  "Hepatocytes - Midportal",
+  "Hepatocytes - Portal",
+  "Cholangiocytes",
+  "Endothelial Cells",
+  "Stellate Cells",
+  "Macrophages",
+  "B Cells",
+  "T Cells",
+  "Neutrophils"
+))
+
+# Reset idents in order to add ontology annotation
+Idents(liver.integrated) <- 'integrated_snn_res.0.2'
+```
+
+### __Cell ontology annotation__
+<a href="https://www.ebi.ac.uk/ols/ontologies/cl" target="_blank">Click here</a> for ontology source
+```{r}
+Cluster.0 <- "CL:0000182:Hepatocyte"
+Cluster.1 <- "CL:0000182:Hepatocyte"
+Cluster.2 <- "CL:0002262:Endothelial Cell of Sinusoid"
+Cluster.3 <- "CL:0000235:Macrophage"
+Cluster.4 <- "CL:0000182:Hepatocyte"
+Cluster.5 <- "CL:0000182:Hepatocyte"
+Cluster.6 <- "CL:0000632: Hepatic Stellate Cell"
+Cluster.7 <- "CL:1000488:Cholangiocyte"
+Cluster.8 <- "CL:0000084:T cell"
+Cluster.9 <- "CL:0000236:B Cell"
+Cluster.10 <- "CL:0000775:Neutrophil"
+
+new.cluster.cl <- c(Cluster.0, Cluster.1, Cluster.2, Cluster.3, Cluster.4, Cluster.5, Cluster.6, Cluster.7, Cluster.8, Cluster.9, Cluster.10)
+
+names(new.cluster.cl) <- levels(liver.integrated)
+liver.integrated <- RenameIdents(liver.integrated, new.cluster.cl)
+liver.integrated$celltype.ontology <- Idents(liver.integrated)
+
+liver.integrated$celltype.ontology <- Idents(liver.integrated)
+
+liver.integrated$celltype.ontology <- factor(liver.integrated$celltype.ontology, levels = c(
+  "CL:0000182:Hepatocyte",
+  "CL:1000488:Cholangiocyte",
+  "CL:0002262:Endothelial Cell of Sinusoid",
+  "CL:0000632: Hepatic Stellate Cell",
+  "CL:0000235:Macrophage",
+  "CL:0000236:B Cell",
+  "CL:0000084:T cell",
+  "CL:0000775:Neutrophil"
+))
+
+```
+
+### __Merge celltype and treatment for differential expression analysis__
+```{r}
+liver.integrated$cluster.treatment <- paste(liver.integrated$integrated_snn_res.0.2, liver.integrated$treatment, sep = "_")
+liver.integrated$celltype.treatment <- paste(liver.integrated$celltype, liver.integrated$treatment, sep = "_")
+```
+
+### __Change default identifier to celltype__
+```{r}
+Idents(liver.integrated) <- 'celltype'
+```
+
+```{r echo = FALSE}
+UMAP <- DimPlot(liver.integrated, label  = TRUE, repel = TRUE, pt.size = 0.5, reduction = 'umap') + NoLegend()
+ggsave(file = 'umap_annotated.png', plot = UMAP, width = 6, height = 4)
+```
+<img src = "umap_annotated.png", width = 70%><br>
+*__Figure 8.__* UMAP visualiation of annotated clusters
+
+```{r}
+DefaultAssay(liver.integrated) <- 'RNA'
+saveRDS(liver.integrated, file = './finaloutput/liver.integrated.final.RData')
+```
+
+<a href="#top">Back to top</a>
+
+## __Hepatocyte trajectory__
+### __Subset and seperate hepatocytes__
+```{r}
+hepatocytes.integrated <- subset(liver.integrated, subset = celltype.ontology == "CL:0000182:Hepatocyte")
+hep.list <- SplitObject(hepatocytes.integrated, split.by = 'orig.ident')
+```
+
+### __Reprocess counts from hepatocytes only__
+```{r}
+hep.list <- lapply(X = hep.list, FUN = function(x) {
+  x <- NormalizeData(x, normalization.method = "LogNormalize", scale.factor = 10000, verbose = FALSE)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+  x <- ScaleData(x, features = rownames(x), verbose = FALSE)
+})
+```
+
+```{r}
+zone.mat <- read.table('./PublishedData/HalpernZonationGenes.txt', header = T, sep = "\t")
+zone.mat <- subset(zone.mat, zone.mat$q.values <= 0.005)
+common.genes <- intersect(zone.mat$Gene.Symbol, rownames(hepatocytes.integrated))
+hepatocytes.integrated@assays$RNA@var.features <- common.genes
+```
+
+```{r}
+hep.list <- lapply(X = hep.list, FUN = function(x) {
+  DefaultAssay(x) <- 'RNA'  
+  x <- RunPCA(x, features = intersect(zone.mat$Gene.Symbol, rownames(x)), verbose = FALSE)
+  x <- FindNeighbors(x, reduction = "pca", dims = 1:20, verbose = FALSE)
+  x <- FindClusters(x, resolution = 0.2, verbose = FALSE)
+  x <- RunTSNE(x, dims = 1:30, max_iter = 2000, verbose = FALSE)
+  x <- RunUMAP(x, dims = 1:30, verbpse = FALSE)
+})
+```
+
+### __Reintegrate samples__
+```{r}
+hep.anchors <- FindIntegrationAnchors(object.list = hep.list, scale = FALSE)
+hep.integrated <- IntegrateData(anchorset = hep.anchors, dims = 1:30)
+```
+
+```{r}
+DefaultAssay(hep.integrated) <- "integrated"
+hep.integrated <- ScaleData(hep.integrated, verbose = FALSE)
+hep.integrated <- RunPCA(hep.integrated, features = intersect(zone.mat$Gene.Symbol, rownames(hep.integrated)))
+hep.integrated <- RunTSNE(hep.integrated, dims = 1:30, max_iter = 2000, verbose = FALSE)
+hep.integrated <- RunUMAP(hep.integrated, dims = 1:30)
+```
+
+```{r echo = FALSE}
+plots <- DimPlot(hep.integrated, group.by = c("orig.ident", "treatment"))
+ggsave(file = 'umap_heps.png', plot = plots, width = 12, height = 4)
+```
+<img src = "umap_heps.png", width = 100%><br>
+*__Figure 9.__* UMAP visualiation of annotated clusters
+
+```{r}
+hep.integrated <- FindNeighbors(hep.integrated, dims = 1:30, verbose = FALSE)
+hep.integrated <- FindClusters(hep.integrated, resolution = 1.2, verbose = FALSE)
+```
+
+```{r echo = FALSE}
+plot <- DimPlot(hep.integrated, label = TRUE, repel = TRUE, label.size = 6) + NoLegend()
+ggsave(file = 'umap_heps2.png', plot = plot, width = 6, height = 4)
+```
+<img src = "umap_heps2.png", width = 60%><br>
+*__Figure 10.__* UMAP visualiation of annotated clusters
+
+### __Compare to Halpern zonal expression__
+
+```{r echo = FALSE}
+saveRDS(hep.integrated, file = './finaloutput/nault.hepatocytes.integrated.RData')
+```
+
+```{r}
+DefaultAssay(halpern) <- 'RNA'
+DefaultAssay(hep.integrated) <- 'RNA'
+liver.anchors <- FindTransferAnchors(reference = halpern, query = hep.integrated, features = common.genes, k.anchor = 100)
+predictions <- TransferData(anchorset = liver.anchors, refdata = halpern$celltype, dims = 1:10)
+hep.integrated <- AddMetaData(hep.integrated, metadata = predictions)
+```
+
+```{r}
+prediction.scores <- hep.integrated@meta.data[, grepl("^prediction.score.Layer|integrated_snn_res.1.2", names(hep.integrated@meta.data))]
+colnames(prediction.scores) <- gsub("prediction.score.", "", colnames(prediction.scores))
+prediction.scores <- melt(prediction.scores, id.vars = "integrated_snn_res.1.2", variable.name = "source", value.name = "score")
+prediction.scores$source <- factor(prediction.scores$source, levels = c("Layer1", "Layer2", "Layer3", "Layer4", "Layer5", "Layer6", "Layer7", "Layer8", "Layer9"))
+prediction.matrix <- tapply(prediction.scores$score, list(prediction.scores$integrated_snn_res.1.2, prediction.scores$source), median)
+write.table(prediction.matrix, file = './finaloutput/prediction.matrix.hepatocytes.txt', sep = '\t')
+# prediction.matrix <- prediction.matrix[ ,grep('Layer', names(prediction.matrix))]
+# prediction.matrix <- prediction.matrix[, colSums(prediction.matrix) > 0]
+```
+
+```{r}
+cl_cb <- function(hcl, mat){
+  hcl$order <- c(6,7,5,1,9,8,3,4,2)
+  return(hcl)
+}
+```
+
+
+```{r}
+hep.hm <- pheatmap(scale(prediction.matrix), 
+                    #clustering_distance_cols = "manhattan",
+                    cluster_cols=FALSE,
+                    cluster_rows=TRUE,
+                    clustering_callback = cl_cb,
+	                	fontsize_row = 10,
+		                fontsize_col = 10,
+		                color = colorRampPalette(c("white","red"))(2000),
+		                display_numbers = FALSE,
+		                silent = TRUE
+         )
+# hep.hm <- pheatmap(prediction.matrix, cluster_rows = FALSE, cluster_cols = FALSE, color = colorRampPalette(c("white","red"))(200), display_numbers = FALSE, silent = TRUE)
+```
+
+```{r echo=FALSE}
+ggsave(file = 'hmap_hep.png', plot = hep.hm, width = 8, height = 4)
+```
+<img src = "umap_heps2.png", width = 40%><img src = "hmap_hep.png", width = 60%><br>
+*__Figure 10.__* UMAP visualiation of annotated clusters
+
+
+### __Slingshot topology__
+```{r}
+DefaultAssay(hep.integrated) <- 'RNA'
+sim <- as.SingleCellExperiment(hep.integrated)
+condition <- as.factor(sim$treatment)
+sim <- slingshot(sim, reducedDim = 'UMAP')
+```
+
+```{r}
+colors <- colorRampPalette(brewer.pal(11,'Spectral')[-6])(500)
+plotcol <- colors[cut(sim$slingPseudotime_1, breaks = 500)]
+
+i = (0:30)/10
+legcol <- colors[cut(i, breaks = 500)]
+plot(reducedDims(sim)$UMAP, col = plotcol, pch = 16, asp = 1)
+lines(SlingshotDataSet(sim), lwd = 2, col = 'black')
+start = 2.4
+rect(start + i, 5.0, start + 0.1 + i, 5.6, col = legcol[(i*10)+1], lwd = 0, lty = 'blank')
+rect(start, 5, start + 3.1, 5.6)
+text(1.834, -2.239, '0')
+text(-4.54, 2.390, '1')
+text(-3.4877, 1.076, '2')
+text(-1.379, 2.824, '3')
+text(4.778, -2.372, '4')
+text(6.481, -1.97, '5')
+text(4.632, -0.223, '6')
+text(-5.339, -0.0601, '7')
+text(0.3739, -0.1409, '8')
+```
+*__Figure 11.__* Trajectory analysis of hepatocyte nuclei.
+
+
+```{r}
+layout(matrix(1:2,nrow = 1))
+boxplot(slingPseudotime(sim)[,1] ~ condition, col = brewer.pal(3,'Set1')[1:2], main = '', xlab = 'Condition', ylab = 'Pseudotime', las = 1, pch = 16)
+layout(1)
+```
+*__Figure 12.__* Distribution of hepatocyte nuclei along the trajectory in control and treated samples.
+
+<a href="#top">Back to top</a>
+
+## __Functional enrichment__
+```{r eval = FALSE}
+library(GSVA, quietly = TRUE)
+library(GSEABase, quietly = TRUE)
+```
+
+The GSVA package implements the methodology described in the previous section in the function gsva() which requires two main input arguments: the gene expression data and a collection of gene sets. The expression data can be provided either as a matrix object of genes (rows) by sample (columns) expression values. The collection of gene sets can be provided either as a list object with names identifying gene sets and each entry of the list containing the gene identifiers of the genes forming the corresponding set, or as a GeneSetCollection object as defined in the GSEABase package.
+
+Enrichment analysis was performed using the Mus musculus (mouse) Gene Ontology from the <a href="http://ge-lab.org/gskb/" target="_blank">Gene Set Knowledgebase (GSKB)</a>
+
+### __Prepare data for GSVA analysis
+```{r eval = FALSE}
+gsets <- getGmt('./PublicDatasets/MousePath_All_gmt-Format.gmt')
+input_data <- liver.integrated@assays$RNA@scale.data
+rownames(input_data) <- toupper(rownames(input_data)) #GSKB defaults gene symbols as all capitals.
+```
+
+### __Run GSVA__
+This process is extremely slow (~12h using 4 cores and 128GB memory on the MSU HPCC)
+```{r eval = FALSE}
+path_enrich <- gsva(input_data, gsets, min.sz = 10, max.sz = 300, verbose = TRUE, parallel.sz = 1)
+```
+
+### __Filter unwanted Gene Sets__
+```{r eval = FALSE}
+path_enrich <- path_enrich[-(grep('CTD', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('STITCH', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('HPO', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('MATADOR', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('DRUGBANK', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('HUMANCYC', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('SIDER', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('T3DB', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('METHCANCER', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('METHYCANCER', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('LOC_', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('CANCERGENES', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('L2L_', rownames(path_enrich))), ]
+path_enrich <- path_enrich[-(grep('LIT_', rownames(path_enrich))), ]
+dim(path_enrich)
+```
+
+### __Convert enrichment analysis__
+Seurat object data is replaced with enrichment analysis data in order to leverage the same tools
+```{r eval = FALSE}
+GSVA.enrichment  <- liver.integrated
+```
+
+```{r eval = FALSE}
+GSVA.enrichment@assays$RNA@counts <- path_enrich
+GSVA.enrichment@assays$RNA@data <- path_enrich
+GSVA.enrichment@assays$RNA@scale.data <- path_enrich
+GSVA.enrichment@assays$integrated@scale.data <- path_enrich
+GSVA.enrichment@assays$integrated@data <- path_enrich
+GSVA.enrichment@assays$integrated@var.features <- rownames(liver.integrated.pathway@assays$integrated@scale.data)
+```
+
+### __Dimensionality reduction__
+```{r eval = FALSE}
+DefaultAssay(GSVA.enrichment) <- 'integrated'
+GSVA.enrichment <- RunPCA(liver.integrated.pathway, features = VariableFeatures(object = liver.integrated.pathway), verbose = FALSE)
+GSVA.enrichment <- RunTSNE(liver.integrated.pathway, dims = 1:30, max_iter = 2000, verbose = FALSE)
+GSVA.enrichment <- RunUMAP(liver.integrated.pathway, dims = 1:30)
+saveRDS(GSVA.enrichment, file = './finaloutput/GSVA.pathway.final.RData')
+```
+
+```{r echo = FALSE}
+GSVA.enrichment <- readRDS('GSVA.pathway.final.RData')
+```
+
+```{r}
+funct.umap <- DimPlot(GSVA.enrichment, label = TRUE, repel = TRUE, split.by = 'treatment') + NoLegend()
+ggsave(file = 'functional.umap.png', plot = funct.umap, width = 12, height = 4)
+```
+<img src = "functional.umap.png", width = 100%>
+*__Figure 13.__* UMAP visualization of functional enrichment analysis.
+
+### __Identification of marker functions__
+```{r}
+pathway.integrated.markers <- FindAllMarkers(GSVA.enrichment, min.fc = 0.25, only.pos = TRUE, verbose = FALSE)
+saveRDS(pathway.integrated.markers, file = './finaloutput/pathway.integrated.markers.RData')
+```
+
 <a href="#top">Back to top</a>
