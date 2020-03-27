@@ -1,0 +1,66 @@
+---
+title: __Single nuclei gene expression profiling of livers from TCDD treated mice (Analysis Code)__
+output: 
+  html_document:
+    df_print: paged
+    theme: default
+    highlight: monochrome
+    toc: false
+    toc_depth: 2
+    toc_fload: true
+    
+---
+
+<p align="justify">
+Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on  <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).
+
+For more details please see our <a href="https://www.biorxiv.org/" target="_blank">publication</a>
+
+Raw sequencing data and final Seurat object are deposited in GEO <a href="https://www.ncbi.nlm.nih.gov/geo/" target="_blank">here</a>
+</p>
+
+# __Overview of snSeq data analysis__ {.tabset}
+```{r setup, echo = FALSE, message = FALSE, results = "hide"}
+library(knitr)
+library(Cairo)
+library(RColorBrewer)
+library(cowplot)
+library(dplyr)
+library(reshape2)
+options(bitmapType = 'cairo', device = 'png')
+knitr::opts_chunk$set(cache = TRUE, message = FALSE, warning = FALSE, cache.lazy = FALSE)
+options(future.globals.maxSize = (20000*1024^2))
+path <- "/mnt/research/zacharewski_lab/Data/PrjTBD-scRNASEQ-Test1/Analyzed_batch2/"
+```
+
+## __Setting up the environment__ 
+### __Load required libraries__
+```{r loadlibraries, message = FALSE, results = "hide"}
+library(Seurat, quietly = TRUE) #Single-nuclei analysis tools
+library(scater, quietly = TRUE) #QC
+library(DoubletFinder, quietly = TRUE) #Doublet detection
+library(mvoutlier, quietly = TRUE) #Dependency
+library(pheatmap, quietly = TRUE) #Draw heatmaps
+library(mclust, quietly = TRUE) #Draw heatmaps
+library(slingshot, quietly = TRUE) #Trajectory analysis
+library(gam, quietly = TRUE) #Dependency
+library(DESeq2, quietly = TRUE) #Pseudobulk analysis
+```
+
+### __Display session information__
+```{r sessioninfo}
+sessionInfo()
+```
+<a href="#top">Back to top</a>
+
+## __Testing a ggplot graph__
+Some random text here. 
+```{r}
+p <- ggplot(mtcars, aes(mpg, wt)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+ggsave(file = 'p.png', plot = p, height = 6, width = 6)
+```
+<img src = "p.png", width = 100%><br>
+<a href="#top">Back to top</a>

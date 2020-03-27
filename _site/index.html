@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Single nuclei gene expression profiling of livers from TCDD treated mice (Analysis Code)</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/pagedtable-1.1/css/pagedtable.css" rel="stylesheet" />
+<script src="site_libs/pagedtable-1.1/js/pagedtable.js"></script>
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { font-weight: bold; }
+code > span.dt { text-decoration: underline; }
+code > span.co { font-style: italic; }
+code > span.al { font-weight: bold; }
+code > span.er { font-weight: bold; }
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    for (var j = 0; j < rules.length; j++) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">My Website</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore"><strong>Single nuclei gene expression profiling of livers from TCDD treated mice (Analysis Code)</strong></h1>
+
+</div>
+
+
+<p align="justify">
+<p>Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).</p>
+<p>For more details please see our <a href="https://www.biorxiv.org/" target="_blank">publication</a></p>
+Raw sequencing data and final Seurat object are deposited in GEO <a href="https://www.ncbi.nlm.nih.gov/geo/" target="_blank">here</a>
+</p>
+
+<div id="overview-of-snseq-data-analysis" class="section level1 tabset">
+<h1><strong>Overview of snSeq data analysis</strong></h1>
+<div id="setting-up-the-environment" class="section level2">
+<h2><strong>Setting up the environment</strong></h2>
+<div id="load-required-libraries" class="section level3">
+<h3><strong>Load required libraries</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(Seurat, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Single-nuclei analysis tools</span>
+<span class="kw">library</span>(scater, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#QC</span>
+<span class="kw">library</span>(DoubletFinder, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Doublet detection</span>
+<span class="kw">library</span>(mvoutlier, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Dependency</span>
+<span class="kw">library</span>(pheatmap, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Draw heatmaps</span>
+<span class="kw">library</span>(mclust, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Draw heatmaps</span>
+<span class="kw">library</span>(slingshot, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Trajectory analysis</span>
+<span class="kw">library</span>(gam, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Dependency</span>
+<span class="kw">library</span>(DESeq2, <span class="dt">quietly =</span> <span class="ot">TRUE</span>) <span class="co">#Pseudobulk analysis</span></code></pre>
+</div>
+<div id="display-session-information" class="section level3">
+<h3><strong>Display session information</strong></h3>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">sessionInfo</span>()</code></pre>
+<pre><code>## R version 3.6.0 beta (2019-04-14 r76394)
+## Platform: x86_64-pc-linux-gnu (64-bit)
+## Running under: CentOS Linux 7 (Core)
+## 
+## Matrix products: default
+## BLAS/LAPACK: /opt/software/OpenBLAS/0.3.1-GCC-7.3.0-2.30/lib/libopenblas_sandybridgep-r0.3.1.so
+## 
+## locale:
+##  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+##  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+##  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+##  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+##  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+## [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+## 
+## attached base packages:
+##  [1] splines   parallel  stats4    stats     graphics  grDevices utils    
+##  [8] datasets  methods   base     
+## 
+## other attached packages:
+##  [1] DESeq2_1.24.0               gam_1.16.1                 
+##  [3] foreach_1.4.7               slingshot_1.2.0            
+##  [5] princurve_2.1.4             mclust_5.4.5               
+##  [7] pheatmap_1.0.12             mvoutlier_2.0.9            
+##  [9] sgeostat_1.0-27             DoubletFinder_2.0.2        
+## [11] scater_1.12.2               ggplot2_3.2.1              
+## [13] SingleCellExperiment_1.6.0  SummarizedExperiment_1.14.1
+## [15] DelayedArray_0.10.0         BiocParallel_1.18.1        
+## [17] matrixStats_0.55.0          Biobase_2.44.0             
+## [19] GenomicRanges_1.36.1        GenomeInfoDb_1.20.0        
+## [21] IRanges_2.18.3              S4Vectors_0.22.1           
+## [23] BiocGenerics_0.30.0         Seurat_3.1.2               
+## [25] reshape2_1.4.3              dplyr_0.8.4                
+## [27] cowplot_1.0.0               RColorBrewer_1.1-2         
+## [29] Cairo_1.5-10                knitr_1.27                 
+## 
+## loaded via a namespace (and not attached):
+##   [1] rgl_0.100.30             rsvd_1.0.2               vcd_1.4-5               
+##   [4] Hmisc_4.3-0              ica_1.0-2                zinbwave_1.6.0          
+##   [7] class_7.3-15             lmtest_0.9-37            glmnet_3.0-2            
+##  [10] crayon_1.3.4             laeken_0.5.0             MASS_7.3-51.4           
+##  [13] backports_1.1.4          nlme_3.1-139             rlang_0.4.4             
+##  [16] XVector_0.24.0           ROCR_1.0-7               readxl_1.3.1            
+##  [19] irlba_2.3.3              limma_3.40.6             phylobase_0.8.6         
+##  [22] manipulateWidget_0.10.0  bit64_0.9-7              glue_1.3.1              
+##  [25] rngtools_1.5             sctransform_0.2.1        vipor_0.4.5             
+##  [28] AnnotationDbi_1.46.1     haven_2.2.0              tidyselect_0.2.5        
+##  [31] NADA_1.6-1               rio_0.5.16               fitdistrplus_1.0-14     
+##  [34] XML_3.99-0.3             tidyr_1.0.2              zoo_1.8-7               
+##  [37] xtable_1.8-3             magrittr_1.5             evaluate_0.14           
+##  [40] bibtex_0.4.2.2           Rdpack_0.11-1            zlibbioc_1.30.0         
+##  [43] sn_1.5-4                 rstudioapi_0.10          miniUI_0.1.1.1          
+##  [46] sp_1.3-2                 robCompositions_2.1.0    rpart_4.1-15            
+##  [49] pls_2.7-2                zCompositions_1.3.3-1    locfdr_1.1-8            
+##  [52] shiny_1.3.1              BiocSingular_1.0.0       xfun_0.12               
+##  [55] multtest_2.42.0          cluster_2.1.0            caTools_1.18.0          
+##  [58] tibble_2.1.1             ggrepel_0.8.1            ape_5.3                 
+##  [61] listenv_0.8.0            stabledist_0.7-1         png_0.1-7               
+##  [64] reshape_0.8.8            future_1.16.0            withr_2.1.2             
+##  [67] bitops_1.0-6             ranger_0.12.1            plyr_1.8.4              
+##  [70] cellranger_1.1.0         pcaPP_1.9-73             e1071_1.7-3             
+##  [73] pillar_1.4.3             RcppParallel_4.4.4       gplots_3.0.1.2          
+##  [76] multcomp_1.4-11          flexmix_2.3-15           kernlab_0.9-29          
+##  [79] DelayedMatrixStats_1.6.1 vctrs_0.2.2              NMF_0.21.0              
+##  [82] metap_1.3                tools_3.6.0              foreign_0.8-75          
+##  [85] rncl_0.8.3               beeswarm_0.2.3           munsell_0.5.0           
+##  [88] compiler_3.6.0           abind_1.4-5              httpuv_1.5.1            
+##  [91] pkgmaker_0.31            plotly_4.9.1             GenomeInfoDbData_1.2.1  
+##  [94] gridExtra_2.3            edgeR_3.26.8             lattice_0.20-38         
+##  [97] mutoss_0.1-12            later_0.8.0              jsonlite_1.6            
+## [100] GGally_1.4.0             scales_1.0.0             pbapply_1.4-2           
+## [103] carData_3.0-3            genefilter_1.66.0        lazyeval_0.2.2          
+## [106] promises_1.0.1           car_3.0-6                doParallel_1.0.15       
+## [109] latticeExtra_0.6-29      R.utils_2.9.2            checkmate_1.9.4         
+## [112] reticulate_1.14          rmarkdown_1.14           openxlsx_4.1.4          
+## [115] sandwich_2.5-1           webshot_0.5.2            Rtsne_0.15              
+## [118] forcats_0.4.0            copula_0.999-19.1        softImpute_1.4          
+## [121] uwot_0.1.5               igraph_1.2.4.2           HDF5Array_1.12.3        
+## [124] survival_3.1-8           numDeriv_2016.8-1.1      yaml_2.2.0              
+## [127] plotrix_3.7-7            prabclus_2.3-2           htmltools_0.3.6         
+## [130] memoise_1.1.0            modeltools_0.2-22        locfit_1.5-9.1          
+## [133] viridisLite_0.3.0        digest_0.6.23            rrcov_1.5-2             
+## [136] assertthat_0.2.1         mime_0.8                 rappdirs_0.3.1          
+## [139] registry_0.5-1           npsurv_0.4-0             RSQLite_2.2.0           
+## [142] future.apply_1.4.0       lsei_1.2-0               data.table_1.12.8       
+## [145] blob_1.2.1               R.oo_1.23.0              RNeXML_2.4.2            
+## [148] Formula_1.2-3            Rhdf5lib_1.6.3           fpc_2.2-4               
+## [151] RCurl_1.98-1.1           cvTools_0.3.2            hms_0.5.3               
+## [154] base64enc_0.1-3          rhdf5_2.28.1             colorspace_1.4-1        
+## [157] mnormt_1.5-5             ggbeeswarm_0.6.0         SDMTools_1.1-221.2      
+## [160] shape_1.4.4              nnet_7.3-12              Rcpp_1.0.3              
+## [163] ADGofTest_0.3            RANN_2.6.1               mvtnorm_1.0-10          
+## [166] pspline_1.0-18           VIM_4.8.0                truncnorm_1.0-8         
+## [169] R6_2.4.0                 grid_3.6.0               acepack_1.4.1           
+## [172] ggridges_0.5.2           lifecycle_0.1.0          zip_2.0.4               
+## [175] TFisher_0.2.0            curl_3.3                 gdata_2.18.0            
+## [178] leiden_0.3.2             robustbase_0.93-5        Matrix_1.2-17           
+## [181] howmany_0.3-1            RcppAnnoy_0.0.14         TH.data_1.0-10          
+## [184] iterators_1.0.12         stringr_1.4.0            htmlwidgets_1.5.1       
+## [187] purrr_0.3.2              crosstalk_1.0.0          globals_0.12.5          
+## [190] htmlTable_1.13.3         clusterExperiment_2.4.4  codetools_0.2-16        
+## [193] gtools_3.8.1             prettyunits_1.0.2        gridBase_0.4-7          
+## [196] RSpectra_0.16-0          R.methodsS3_1.7.1        gtable_0.3.0            
+## [199] tsne_0.1-3               DBI_1.1.0                httr_1.4.1              
+## [202] KernSmooth_2.23-16       stringi_1.4.3            progress_1.2.2          
+## [205] uuid_0.1-2               diptest_0.75-7           annotate_1.62.0         
+## [208] viridis_0.5.1            xml2_1.2.2               boot_1.3-24             
+## [211] BiocNeighbors_1.2.0      geneplotter_1.62.0       ade4_1.7-13             
+## [214] sROC_0.1-2               DEoptimR_1.0-8           bit_1.1-15.1            
+## [217] jpeg_0.1-8.1             pkgconfig_2.0.3          gsl_2.1-6               
+## [220] gbRd_0.4-11</code></pre>
+<p><a href="#top">Back to top</a></p>
+</div>
+</div>
+<div id="testing-a-ggplot-graph" class="section level2">
+<h2><strong>Testing a ggplot graph</strong></h2>
+<p>Some random text here.</p>
+<pre class="sourceCode r"><code class="sourceCode r">p &lt;-<span class="st"> </span><span class="kw">ggplot</span>(mtcars, <span class="kw">aes</span>(mpg, wt)) +
+<span class="st">  </span><span class="kw">geom_point</span>() +
+<span class="st">  </span><span class="kw">geom_smooth</span>(<span class="dt">method =</span> lm)
+
+<span class="kw">ggsave</span>(<span class="dt">file =</span> <span class="st">&#39;p.png&#39;</span>, <span class="dt">plot =</span> p, <span class="dt">height =</span> <span class="dv">6</span>, <span class="dt">width =</span> <span class="dv">6</span>)</code></pre>
+<p><img src = "p.png", width = 100%><br> <a href="#top">Back to top</a></p>
+</div>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
