@@ -3,5 +3,5 @@ output_dir: "."
 navbar:
   title: "Zacharewski lab single-nuclei sequencing analysis"
   left:
-  - text: "Nault et al. (2020)"
-  href: index.html
+    - text: "Nault et al. (2020)"
+      href: index.html
