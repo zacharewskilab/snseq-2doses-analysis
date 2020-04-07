@@ -13,12 +13,12 @@ output:
     
 ---
 
-<h3 align="justify"> Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on  <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).
+<h5 align="justify"> Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on  <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).
 
 For more details please see our <a href="https://www.biorxiv.org/" target="_blank">publication</a>
 
 Raw sequencing data and final Seurat object are deposited in the <a href="https://www.ncbi.nlm.nih.gov/geo/" target="_blank">Gene Expression Omnibus (GEO)</a>
-</h3>
+</h5>
 
 # __Single-nuclei RNA sequencing analysis code__ {.tabset}
 ```{r setup, echo = FALSE, message = FALSE, results = "hide"}
