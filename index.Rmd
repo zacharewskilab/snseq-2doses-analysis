@@ -1,5 +1,7 @@
 ---
-title: __Single nuclei gene expression profiling of livers from TCDD treated mice (Analysis Code)__
+title: __Application of singe nuclei RNA sequencing to assess the hepatic effects of 2,3,7,8-tetrachlorodibenzo-p-dioxin__
+author:
+  - Rance Nault^[Biochemistry and Molecular Biology, Institute for Integrative Toxicology, Michigan State University, naultran@msu.edu]
 output: 
   html_document:
     df_print: paged
@@ -11,15 +13,14 @@ output:
     
 ---
 
-<p align="justify">
-Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on  <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).
+<h3 align="justify"> Data was collected as part of preliminary method development and testing for single-nuclei RNA-sequencing from mouse livers of 2,3,7,8-tetrachlorodibenzo-<i>p</i>-dioxin (TCDD) treated mice. For experimental and model details see our preprint on  <a href="https://www.biorxiv.org/" target="_blank">bioRxiv</a>. A total of 4 samples (2 vehicle, 2 TCDD) were examined by snRNA-seq. Samples were run in two batches (Day 1 - VEH64; Day 2 - VEH62, TCDD51, TCDD59).
 
 For more details please see our <a href="https://www.biorxiv.org/" target="_blank">publication</a>
 
-Raw sequencing data and final Seurat object are deposited in GEO <a href="https://www.ncbi.nlm.nih.gov/geo/" target="_blank">here</a>
-</p>
+Raw sequencing data and final Seurat object are deposited in the <a href="https://www.ncbi.nlm.nih.gov/geo/" target="_blank">Gene Expression Omnibus (GEO)</a>
+</h3>
 
-# __Overview of snSeq data analysis__ {.tabset}
+# __Single-nuclei RNA sequencing analysis code__ {.tabset}
 ```{r setup, echo = FALSE, message = FALSE, results = "hide"}
 library(knitr)
 library(Cairo)
