@@ -348,6 +348,7 @@ import10x &lt;-<span class="st"> </span>function(path, sample.id, treatment, bat
   seu.data &lt;-<span class="st"> </span><span class="kw">Read10X</span>(<span class="dt">data.dir =</span> path)
   seu &lt;-<span class="st"> </span><span class="kw">CreateSeuratObject</span>(<span class="dt">counts =</span> seu.data, <span class="dt">project =</span> sample.id, <span class="dt">min.cells =</span> cellmin, <span class="dt">min.features =</span> featmin)
   seu[[<span class="st">&quot;percent.mt&quot;</span>]] &lt;-<span class="st"> </span><span class="kw">PercentageFeatureSet</span>(seu, <span class="dt">pattern =</span> <span class="st">&quot;^mt-&quot;</span>) <span class="co">#Calculate percent mitochondrial genes</span>
+  seu[[<span class="st">&quot;percent.hb&quot;</span>]] &lt;-<span class="st"> </span><span class="kw">PercentageFeatureSet</span>(seu, <span class="dt">pattern =</span> <span class="st">&quot;^Hb[a-b]-&quot;</span>) <span class="co">#Calculate the percent hemoglobin genes</span>
   seu[[<span class="st">&quot;batch_ID&quot;</span>]] &lt;-<span class="st"> </span>batch_ID <span class="co">#Assign a batch ID in the metadata</span>
   seu$treatment &lt;-<span class="st"> </span>treatment
   <span class="kw">return</span>(<span class="kw">list</span>(<span class="dt">ssize =</span> <span class="kw">dim</span>(seu), <span class="dt">seu.object =</span> seu)) <span class="co">#Indicate treatment group in the metadata</span>
@@ -400,14 +401,14 @@ import10x &lt;-<span class="st"> </span>function(path, sample.id, treatment, bat
 ##  [13] backports_1.1.4          nlme_3.1-139             rlang_0.4.4             
 ##  [16] XVector_0.24.0           ROCR_1.0-7               readxl_1.3.1            
 ##  [19] irlba_2.3.3              limma_3.40.6             phylobase_0.8.6         
-##  [22] manipulateWidget_0.10.0  bit64_0.9-7              glue_1.3.1              
+##  [22] manipulateWidget_0.10.0  bit64_0.9-7              glue_1.4.1              
 ##  [25] rngtools_1.5             sctransform_0.2.1        vipor_0.4.5             
 ##  [28] AnnotationDbi_1.46.1     haven_2.2.0              tidyselect_0.2.5        
 ##  [31] NADA_1.6-1               rio_0.5.16               fitdistrplus_1.0-14     
 ##  [34] XML_3.99-0.3             tidyr_1.0.2              zoo_1.8-7               
 ##  [37] xtable_1.8-3             magrittr_1.5             evaluate_0.14           
 ##  [40] bibtex_0.4.2.2           Rdpack_0.11-1            zlibbioc_1.30.0         
-##  [43] sn_1.5-4                 rstudioapi_0.10          miniUI_0.1.1.1          
+##  [43] sn_1.5-4                 rstudioapi_0.11          miniUI_0.1.1.1          
 ##  [46] sp_1.3-2                 robCompositions_2.1.0    rpart_4.1-15            
 ##  [49] pls_2.7-2                zCompositions_1.3.3-1    locfdr_1.1-8            
 ##  [52] shiny_1.3.1              BiocSingular_1.0.0       xfun_0.12               
@@ -497,6 +498,7 @@ TCDD51$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(T
 TCDD59 &lt;-<span class="st"> </span><span class="kw">import10x</span>(<span class="kw">paste</span>(path, <span class="st">&quot;TCDD59/outs/filtered_feature_bc_matrix/&quot;</span>, <span class="dt">sep =</span> <span class="st">&quot;&quot;</span>), 
                     <span class="st">&quot;TCDD59&quot;</span>, <span class="st">&quot;TCDD&quot;</span>, <span class="st">&quot;Day2&quot;</span>, cellmin, featmin)
 TCDD59$seu.object &lt;-<span class="st"> </span><span class="kw">subset</span>(TCDD59$seu.object, <span class="dt">subset =</span> percent.mt &lt;<span class="st"> </span>mtmax)</code></pre>
+<p><img src = "initialQC.png", width = 100%> <em><strong>Figure 0.</strong></em> Percent expressed mitochondrial and hemoglobin genes in samples prior to filtering.</p>
 </div>
 <div id="dataset-summary-pre-qc" class="section level3">
 <h3><strong>Dataset summary (pre-QC)</strong></h3>
